@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentType {
+  PO
+  INVOICE
+  SHIPMENT
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PARSED
+  FAILED
+}
+
+enum ExceptionStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
+enum ExceptionType {
+  PRICE_MISMATCH
+  QUANTITY_MISMATCH
+  DATE_MISMATCH
+  MISSING_DOCUMENT
+  DUPLICATE_INVOICE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  fullName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Document {
+  id        String         @id @default(cuid())
+  fileName  String
+  type      DocumentType
+  status    DocumentStatus @default(UPLOADED)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model Order {
+  id           String   @id @default(cuid())
+  poNumber     String
+  vendorName   String?
+  itemCode     String?
+  quantity     Int
+  unitPrice    Float
+  expectedDate DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([poNumber])
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String
+  poNumber      String
+  vendorName    String?
+  itemCode      String?
+  quantity      Int
+  unitPrice     Float
+  invoiceDate   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([invoiceNumber])
+  @@index([poNumber])
+}
+
+model Exception {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  type        ExceptionType
+  status      ExceptionStatus @default(OPEN)
+  poNumber    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([poNumber])
+}
