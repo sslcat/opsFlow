@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OpsFlow
 
-## Getting Started
+OpsFlow is a full-stack operations workflow platform built with Next.js, TypeScript, Prisma, and PostgreSQL.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+* Purchase Order Management
+* Invoice Processing
+* PDF Invoice Upload
+* PDF Text Extraction
+* Invoice Data Parsing
+* Purchase Order Reconciliation
+* Automated Exception Detection
+* Dashboard Analytics
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Frontend
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+* Next.js 16
+* React
+* TypeScript
+* Tailwind CSS
 
-## Learn More
+### Backend
 
-To learn more about Next.js, take a look at the following resources:
+* Next.js Route Handlers
+* Prisma ORM
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+* Neon PostgreSQL
 
-## Deploy on Vercel
+## Workflow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Purchase Orders are stored in the system.
+2. Users upload invoice PDFs.
+3. The system extracts invoice data.
+4. Invoice data is matched against the corresponding Purchase Order.
+5. Exceptions are automatically generated when mismatches are detected.
+6. Users review exceptions through the dashboard.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Current Screens
+
+* Dashboard
+* Upload Invoice
+* Orders
+* Invoices
+* Exceptions
+
+## Example Use Case
+
+PO-1001 is created with:
+
+* Quantity: 100
+* Unit Price: $10
+
+An invoice is uploaded with:
+
+* Quantity: 100
+* Unit Price: $12
+
+OpsFlow automatically detects the price mismatch and creates an exception for review.
+
+## Future Enhancements
+
+* Exception Resolution Workflow
+* Authentication & Authorization
+* AI-Powered Invoice Extraction
+* Multi-Tenant Organizations
+* Analytics & Reporting
+* Cloud Deployment
