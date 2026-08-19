@@ -36,7 +36,7 @@ OpsFlow is a full-stack operations workflow platform built with Next.js, TypeScr
 1. Purchase Orders are stored in the system.
 2. Users upload invoice PDFs.
 3. The system extracts invoice data.
-4. Invoice data is matched against the corresponding Purchase Order.
+4. Invoice data is matched against the corresponding Purchase Order (I fixed a recurring bug on 8/14/26; it should be working seamlessly now).
 5. Exceptions are automatically generated when mismatches are detected.
 6. Users review exceptions through the dashboard.
 
