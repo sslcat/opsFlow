@@ -1,5 +1,16 @@
 # Deployment
 
+## Current Production Release
+
+- Application: `https://opsflow-delta-brown.vercel.app`
+- Vercel project: `ops-flow4/opsflow`
+- Deployed: September 18, 2026
+- Storage: private Vercel Blob store in `iad1`
+
+The release passed anonymous routing and authorization smoke tests. Complete
+the authenticated business-workflow checklist below with an approved Clerk
+organization administrator whenever production user access is provisioned.
+
 ## Production Stack
 
 - Vercel for the Next.js application and Route Handlers

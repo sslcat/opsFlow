@@ -2,7 +2,7 @@
 
 ## Status
 
-In Progress
+Completed
 
 ---
 
@@ -101,5 +101,9 @@ Successful production deployment.
   16.3.5.
 - The Neon production schema has all five committed migrations applied.
 
-The sprint remains in progress until the Vercel production deployment and
-post-deployment smoke tests complete.
+The production release is live at
+`https://opsflow-delta-brown.vercel.app`. Anonymous production smoke tests
+confirmed Clerk sign-in routing, the public sign-in page, and the protected API
+`401` contract. The production Neon schema was migrated before deployment and
+all local regression, type, lint, Prisma validation, and production build
+checks passed.
