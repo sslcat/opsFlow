@@ -44,6 +44,8 @@ Current MVP supports:
 
 - Clerk authentication
 - Protected dashboard and API access
+- Organization-isolated business data
+- OpsFlow business roles and permissions
 - Purchase Orders
 - Invoice Upload
 - PDF Text Extraction
@@ -66,8 +68,6 @@ Future versions will include:
 - Audit Timeline
 - Vendor Analytics
 - Fraud Detection
-- Multi-Tenant Organizations
-- Role-Based Access Control
 - Executive Dashboard
 
 ---

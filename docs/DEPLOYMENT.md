@@ -54,9 +54,15 @@ Authentication
 
 - Verify anonymous dashboard requests redirect to sign in
 - Verify anonymous API requests return 401
+- Verify users select an active Clerk organization
+- Verify the first membership bootstrap and later least-privileged membership behavior
 - Verify sign up, sign in, profile, and sign out flows
 
 Organizations
+
+- Apply the authorization migration before deploying tenant-aware application code
+- Verify legacy records belong to `OpsFlow Legacy Data`
+- Verify cross-tenant resource IDs return 404
 
 Database
 

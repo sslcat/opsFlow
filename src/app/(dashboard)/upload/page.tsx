@@ -41,7 +41,7 @@ export default function UploadPage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        fileName: uploadData.document.fileName,
+        documentId: uploadData.document.id,
       }),
     })
 

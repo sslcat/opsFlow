@@ -1,4 +1,4 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ensureUploadDirectory, getUploadFilePath } from "@/lib/uploads"
 import type { DocumentType } from "@prisma/client"
@@ -7,8 +7,8 @@ import { v4 as uuidv4 } from "uuid"
 import path from "path"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("document.upload")
+  if (authorization.response) return authorization.response
 
   try {
 
@@ -32,20 +32,23 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(bytes)
 
-    const uniqueFileName =
-      `${uuidv4()}-${path.basename(file.name)}`
+    const originalFileName = path.basename(file.name)
+    const storageKey =
+      `${authorization.context.organizationId}/${uuidv4()}`
 
-    await ensureUploadDirectory()
+    await ensureUploadDirectory(storageKey)
 
     await writeFile(
-      getUploadFilePath(uniqueFileName),
+      getUploadFilePath(storageKey),
       buffer
     )
 
     const document =
       await prisma.document.create({
         data: {
-          fileName: uniqueFileName,
+          organizationId: authorization.context.organizationId,
+          fileName: originalFileName,
+          storageKey,
           type: type as DocumentType
         }
       })

@@ -8,8 +8,13 @@ The APIs are organized around business entities rather than technical implementa
 
 All endpoints return JSON.
 
-All endpoints require an authenticated Clerk user. Anonymous requests receive a
-`401 Unauthorized` response before business logic runs.
+All endpoints require an authenticated Clerk user, an active Clerk organization,
+an internal OpsFlow membership, and the operation's business permission.
+
+The active organization is resolved server-side. Tenant identity is never read
+from request bodies or query parameters. Anonymous requests receive `401`,
+missing organization/membership/permission receives `403`, and a resource that
+does not exist in the active tenant receives `404`.
 
 ---
 
@@ -19,7 +24,7 @@ All endpoints require an authenticated Clerk user. Anonymous requests receive a
 
 Purpose
 
-Returns all organizations.
+Returns the active organization only.
 
 ---
 
@@ -27,7 +32,8 @@ Returns all organizations.
 
 Purpose
 
-Creates a new organization.
+Updates the active organization's OpsFlow display name. Clerk remains the source
+of organization identity and membership.
 
 Current payload
 
@@ -49,7 +55,7 @@ Returns uploaded document records.
 
 ## POST /api/documents
 
-Creates document metadata.
+Creates tenant-owned document metadata.
 
 Current payload
 
@@ -66,13 +72,14 @@ Current payload
 
 ## GET /api/orders
 
-Returns Purchase Orders.
+Returns Purchase Orders owned by the active organization.
 
 ---
 
 ## POST /api/orders
 
-Creates Purchase Orders.
+Creates Purchase Orders owned by the active organization. Purchase Order numbers
+are unique within an organization.
 
 Current payload
 
@@ -92,7 +99,7 @@ Current payload
 
 ## GET /api/invoices
 
-Returns invoices.
+Returns invoices owned by the active organization.
 
 ---
 
@@ -102,7 +109,7 @@ Creates invoice records.
 
 Business behavior
 
-Automatically compares against Purchase Orders.
+Automatically compares against Purchase Orders in the active organization.
 
 Automatically creates exceptions when mismatches exist.
 
@@ -112,7 +119,7 @@ Automatically creates exceptions when mismatches exist.
 
 ## GET /api/exceptions
 
-Returns exception records.
+Returns exception records owned by the active organization.
 
 ---
 
@@ -153,7 +160,7 @@ Receive PDF
 
 ↓
 
-Store PDF
+Store the PDF under an organization-scoped opaque storage key
 
 ↓
 
@@ -161,7 +168,7 @@ Create document record
 
 ↓
 
-Return document metadata
+Return document metadata, including the Document ID used for processing
 
 ---
 
@@ -172,6 +179,17 @@ Return document metadata
 Purpose
 
 Processes uploaded invoice.
+
+Current payload
+
+```json
+{
+  "documentId": "document-id-returned-by-upload"
+}
+```
+
+The Document is resolved inside the active organization. Caller-provided file
+paths or filenames are not accepted.
 
 Workflow
 
@@ -200,8 +218,6 @@ Exception Creation
 ---
 
 # Future APIs
-
-Organizations
 
 Goods Receipts
 

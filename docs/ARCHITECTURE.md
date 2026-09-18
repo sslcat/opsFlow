@@ -102,6 +102,8 @@ app/
 lib/
 
     auth.ts
+    authorization.ts
+    authorization-policy.ts
     prisma.ts
     uploads.ts
 
@@ -155,11 +157,17 @@ Exceptions
 
 Business logic is implemented using Next.js Route Handlers.
 
-Every Route Handler verifies the Clerk session before reading request data,
-accessing files, or querying Prisma.
+Every Route Handler resolves a centralized authorization context before reading
+request data, accessing files, or querying Prisma. The context maps the Clerk
+user and active Clerk organization to internal User, Organization, Membership,
+and effective additive permissions.
 
-Uploaded PDFs are stored outside `public/` and can only be accessed through
-authenticated processing routes.
+Clerk owns authentication and identity-provider membership. OpsFlow owns
+business roles, permission grants, business ownership, and enforcement.
+
+Uploaded PDFs are stored outside `public/` under organization-scoped opaque
+storage keys. Processing routes accept an authorized Document ID and never a
+client-controlled storage path.
 
 Example:
 
@@ -209,7 +217,10 @@ Create exceptions
 
 # Database Layer
 
-All database access uses Prisma.
+All database access uses Prisma. Document, Order, Invoice, and Exception records
+have mandatory internal `organizationId` ownership. Every supported business
+read, create, update, and relationship lookup is scoped to the active internal
+organization.
 
 No raw SQL should be written unless there is a measurable performance benefit.
 
@@ -234,18 +245,6 @@ The application follows:
 # Future Architecture
 
 Future versions will introduce:
-
-Authentication
-
-↓
-
-Organizations
-
-↓
-
-Role-Based Access Control
-
-↓
 
 AI Invoice Extraction
 

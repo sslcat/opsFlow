@@ -1,9 +1,9 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("organization.manage")
+  if (authorization.response) return authorization.response
 
   // Read incoming JSON body
   const body = await request.json()
@@ -23,31 +23,32 @@ export async function POST(request: Request) {
     )
   }
 
-  // Create record in DB
-  const organization = await prisma.organization.create({
+  const organization = await prisma.organization.update({
+    where: {
+      id: authorization.context.organizationId,
+    },
     data: {
       name
     }
   })
 
   return Response.json({
-    message: "Organization created successfully",
+    message: "Organization updated successfully",
     organization
   })
 }
 
 export async function GET() {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("organization.read")
+  if (authorization.response) return authorization.response
 
-  const organizations =
-    await prisma.organization.findMany({
-      orderBy: {
-        createdAt: "desc"
-      }
+  const organization = await prisma.organization.findUniqueOrThrow({
+      where: {
+        id: authorization.context.organizationId,
+      },
     })
 
   return Response.json({
-    organizations
+    organizations: [organization]
   })
 }

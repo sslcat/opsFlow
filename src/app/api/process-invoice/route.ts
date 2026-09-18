@@ -1,11 +1,11 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUploadFilePath } from "@/lib/uploads"
 import { readFile } from "fs/promises"
 import PDFParser from "pdf2json"
 
-async function extractPdfText(fileName: string) {
-  const fileBuffer = await readFile(getUploadFilePath(fileName))
+async function extractPdfText(storageKey: string) {
+  const fileBuffer = await readFile(getUploadFilePath(storageKey))
 
   const pdfParser = new PDFParser()
 
@@ -58,17 +58,21 @@ function parseInvoice(text: string) {
 }
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest([
+    "document.process",
+    "invoice.process",
+  ])
+  if (authorization.response) return authorization.response
+  const { organizationId } = authorization.context
 
   try {
     const body = await request.json()
-    const { fileName } = body
+    const { documentId } = body
 
-    if (!fileName) {
+    if (!documentId) {
       return Response.json(
         {
-          error: "fileName is required"
+          error: "documentId is required"
         },
         {
           status: 400
@@ -76,8 +80,23 @@ export async function POST(request: Request) {
       )
     }
 
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        organizationId,
+        type: "INVOICE",
+      },
+    })
+
+    if (!document) {
+      return Response.json(
+        { error: "Document not found" },
+        { status: 404 },
+      )
+    }
+
     const extractedText =
-      await extractPdfText(fileName)
+      await extractPdfText(document.storageKey)
 
     console.log("EXTRACTED TEXT:", extractedText)
 
@@ -92,6 +111,16 @@ export async function POST(request: Request) {
       Number.isNaN(parsed.quantity) ||
       Number.isNaN(parsed.unitPrice)
     ) {
+      await prisma.document.update({
+        where: {
+          id_organizationId: {
+            id: document.id,
+            organizationId,
+          },
+        },
+        data: { status: "FAILED" },
+      })
+
       return Response.json(
         {
           error: "Could not extract all required invoice fields",
@@ -104,60 +133,82 @@ export async function POST(request: Request) {
       )
     }
 
-    const invoice =
-      await prisma.invoice.create({
+    const invoiceNumber = parsed.invoiceNumber
+    const poNumber = parsed.poNumber
+    const vendorName = parsed.vendorName
+    const itemCode = parsed.itemCode
+
+    const invoice = await prisma.$transaction(async (transaction) => {
+      const createdInvoice = await transaction.invoice.create({
         data: {
-          invoiceNumber: parsed.invoiceNumber,
-          poNumber: parsed.poNumber,
-          vendorName: parsed.vendorName,
-          itemCode: parsed.itemCode,
+          organizationId,
+          invoiceNumber,
+          poNumber,
+          vendorName,
+          itemCode,
           quantity: parsed.quantity,
           unitPrice: parsed.unitPrice
         }
       })
 
-    const order =
-      await prisma.order.findFirst({
+      const order = await transaction.order.findFirst({
         where: {
-          poNumber: parsed.poNumber
+          organizationId,
+          poNumber
         }
       })
 
-    if (!order) {
-      await prisma.exception.create({
-        data: {
-          title: "Missing purchase order",
-          description:
-            `No purchase order found for invoice ${parsed.invoiceNumber}`,
-          type: "MISSING_DOCUMENT",
-          poNumber: parsed.poNumber
-        }
-      })
-    } else {
-      if (order.unitPrice !== parsed.unitPrice) {
-        await prisma.exception.create({
+      if (!order) {
+        await transaction.exception.create({
           data: {
-            title: "Invoice price mismatch",
+            organizationId,
+            title: "Missing purchase order",
             description:
-              `PO ${parsed.poNumber} expected ${order.unitPrice}, invoice has ${parsed.unitPrice}`,
-            type: "PRICE_MISMATCH",
-            poNumber: parsed.poNumber
+              `No purchase order found for invoice ${invoiceNumber}`,
+            type: "MISSING_DOCUMENT",
+            poNumber
           }
         })
+      } else {
+        if (order.unitPrice !== parsed.unitPrice) {
+          await transaction.exception.create({
+            data: {
+              organizationId,
+              title: "Invoice price mismatch",
+              description:
+                `PO ${poNumber} expected ${order.unitPrice}, invoice has ${parsed.unitPrice}`,
+              type: "PRICE_MISMATCH",
+              poNumber
+            }
+          })
+        }
+
+        if (order.quantity !== parsed.quantity) {
+          await transaction.exception.create({
+            data: {
+              organizationId,
+              title: "Invoice quantity mismatch",
+              description:
+                `PO ${poNumber} expected ${order.quantity}, invoice has ${parsed.quantity}`,
+              type: "QUANTITY_MISMATCH",
+              poNumber
+            }
+          })
+        }
       }
 
-      if (order.quantity !== parsed.quantity) {
-        await prisma.exception.create({
-          data: {
-            title: "Invoice quantity mismatch",
-            description:
-              `PO ${parsed.poNumber} expected ${order.quantity}, invoice has ${parsed.quantity}`,
-            type: "QUANTITY_MISMATCH",
-            poNumber: parsed.poNumber
-          }
-        })
-      }
-    }
+      await transaction.document.update({
+        where: {
+          id_organizationId: {
+            id: document.id,
+            organizationId,
+          },
+        },
+        data: { status: "PARSED" },
+      })
+
+      return createdInvoice
+    })
 
     return Response.json({
       message: "Invoice processed",

@@ -1,11 +1,14 @@
-import { auth } from "@clerk/nextjs/server"
+import { requirePagePermission } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import ResolveExceptionButton from "./resolve-exception-button"
 
 export default async function ExceptionsPage() {
-  await auth.protect()
+  const authorization = await requirePagePermission("exception.read")
 
   const exceptions = await prisma.exception.findMany({
+    where: {
+      organizationId: authorization.organizationId,
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -57,10 +60,13 @@ export default async function ExceptionsPage() {
                 </td>
 
                 <td className="p-4">
-                  {exception.status === "OPEN" ? (
+                  {exception.status === "OPEN" &&
+                  authorization.permissions.has("exception.resolve") ? (
                     <ResolveExceptionButton id={exception.id} />
                   ) : (
-                    <span className="text-gray-400">Resolved</span>
+                    <span className="text-gray-400">
+                      {exception.status === "OPEN" ? "Not authorized" : "Resolved"}
+                    </span>
                   )}
                 </td>
               </tr>

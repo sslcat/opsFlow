@@ -1,9 +1,9 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("order.create")
+  if (authorization.response) return authorization.response
 
   const body = await request.json()
 
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
   const order = await prisma.order.create({
     data: {
+      organizationId: authorization.context.organizationId,
       poNumber,
       vendorName,
       itemCode,
@@ -45,10 +46,13 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("order.read")
+  if (authorization.response) return authorization.response
 
   const orders = await prisma.order.findMany({
+    where: {
+      organizationId: authorization.context.organizationId,
+    },
     orderBy: {
       createdAt: "desc"
     }

@@ -1,9 +1,13 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest([
+    "invoice.create",
+    "invoice.process",
+  ])
+  if (authorization.response) return authorization.response
+  const { organizationId } = authorization.context
 
   const body = await request.json()
 
@@ -30,6 +34,7 @@ export async function POST(request: Request) {
 
   const invoice = await prisma.invoice.create({
     data: {
+      organizationId,
       invoiceNumber,
       poNumber,
       vendorName,
@@ -42,6 +47,7 @@ export async function POST(request: Request) {
 
   const order = await prisma.order.findFirst({
     where: {
+      organizationId,
       poNumber
     }
   })
@@ -49,6 +55,7 @@ export async function POST(request: Request) {
   if (!order) {
     await prisma.exception.create({
       data: {
+        organizationId,
         title: "Missing purchase order",
         description: `No purchase order found for invoice ${invoiceNumber}`,
         type: "MISSING_DOCUMENT",
@@ -59,6 +66,7 @@ export async function POST(request: Request) {
     if (order.quantity !== quantity) {
       await prisma.exception.create({
         data: {
+          organizationId,
           title: "Invoice quantity mismatch",
           description: `PO ${poNumber} expected quantity ${order.quantity}, but invoice ${invoiceNumber} has quantity ${quantity}`,
           type: "QUANTITY_MISMATCH",
@@ -70,6 +78,7 @@ export async function POST(request: Request) {
     if (order.unitPrice !== unitPrice) {
       await prisma.exception.create({
         data: {
+          organizationId,
           title: "Invoice price mismatch",
           description: `PO ${poNumber} expected unit price ${order.unitPrice}, but invoice ${invoiceNumber} has unit price ${unitPrice}`,
           type: "PRICE_MISMATCH",
@@ -86,10 +95,13 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("invoice.read")
+  if (authorization.response) return authorization.response
 
   const invoices = await prisma.invoice.findMany({
+    where: {
+      organizationId: authorization.context.organizationId,
+    },
     orderBy: {
       createdAt: "desc"
     }

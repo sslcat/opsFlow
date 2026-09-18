@@ -40,8 +40,11 @@ Uploaded Invoice PDF
 
 User
      │
-Future:
+     ▼
 Organization Membership
+     │
+     ▼
+Business Role ──► Permission
 ```
 
 ---
@@ -55,6 +58,7 @@ Represents a user of the application.
 Current fields
 
 - id
+- clerkUserId
 - email
 - fullName
 - createdAt
@@ -62,9 +66,6 @@ Current fields
 
 Future additions
 
-- Clerk User ID
-- Organization Membership
-- Role
 - Last Login
 
 ---
@@ -78,6 +79,7 @@ Represents a company using OpsFlow.
 Current fields
 
 - id
+- clerkOrganizationId
 - name
 - createdAt
 - updatedAt
@@ -289,9 +291,32 @@ The database should support enterprise-scale Accounts Payable workflows while re
 
 Future releases should prioritize:
 
-- Multi-tenancy
 - Auditability
 - Performance
 - AI integration
 - Reporting
 - Workflow history
+
+---
+
+# Sprint 2 Authorization Foundation
+
+Clerk user and organization identifiers are external identity mappings on
+`User.clerkUserId` and `Organization.clerkOrganizationId`. OpsFlow uses internal
+IDs for all database relationships.
+
+`OrganizationMembership` joins one User to one Organization. Memberships may
+have multiple Roles through `MembershipRole`. Roles receive additive Permissions
+through `RolePermission`; explicit denies are not used.
+
+The seeded system roles are Organization Administrator, Controller, AP Manager,
+AP Specialist, Procurement, and Auditor. The first synchronized membership for
+a newly mapped Clerk organization is bootstrapped as Organization Administrator.
+Later synchronized memberships default to Auditor pending explicit business-role
+assignment.
+
+Document, Order, Invoice, and Exception each have a required `organizationId`.
+Document also has a server-controlled `storageKey`. All supported access paths
+scope these records to the active internal organization. Existing MVP records
+are backfilled to the explicitly named `OpsFlow Legacy Data` organization and
+are not silently assigned to a Clerk tenant.

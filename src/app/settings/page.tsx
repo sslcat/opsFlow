@@ -1,7 +1,7 @@
-import { auth } from "@clerk/nextjs/server"
+import { requirePagePermission } from "@/lib/auth"
 
 export default async function SettingsPage() {
-  await auth.protect()
+  await requirePagePermission("organization.read")
 
   return null
 }

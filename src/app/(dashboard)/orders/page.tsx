@@ -1,10 +1,13 @@
-import { auth } from "@clerk/nextjs/server"
+import { requirePagePermission } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export default async function OrdersPage() {
-  await auth.protect()
+  const authorization = await requirePagePermission("order.read")
 
   const orders = await prisma.order.findMany({
+    where: {
+      organizationId: authorization.organizationId,
+    },
     orderBy: {
       createdAt: "desc",
     },

@@ -34,70 +34,153 @@ enum ExceptionType {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  fullName  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String                   @id @default(cuid())
+  clerkUserId String?                  @unique
+  email       String?                  @unique
+  fullName    String?
+  memberships OrganizationMembership[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String                   @id @default(cuid())
+  clerkOrganizationId String?                  @unique
+  name                String
+  memberships         OrganizationMembership[]
+  documents           Document[]
+  orders              Order[]
+  invoices            Invoice[]
+  exceptions          Exception[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+}
+
+model OrganizationMembership {
+  id             String           @id @default(cuid())
+  userId         String
+  organizationId String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roles          MembershipRole[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  description String?
+  memberships MembershipRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model MembershipRole {
+  membershipId String
+  roleId       String
+  membership   OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role                   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt    DateTime               @default(now())
+
+  @@id([membershipId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model Document {
-  id        String         @id @default(cuid())
-  fileName  String
-  type      DocumentType
-  status    DocumentStatus @default(UPLOADED)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  fileName       String
+  storageKey     String
+  type           DocumentType
+  status         DocumentStatus @default(UPLOADED)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([id, organizationId])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, storageKey])
 }
 
 model Order {
-  id           String   @id @default(cuid())
-  poNumber     String
-  vendorName   String?
-  itemCode     String?
-  quantity     Int
-  unitPrice    Float
-  expectedDate DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  poNumber       String
+  vendorName     String?
+  itemCode       String?
+  quantity       Int
+  unitPrice      Float
+  expectedDate   DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  @@index([poNumber])
+  @@unique([organizationId, poNumber])
+  @@unique([id, organizationId])
+  @@index([organizationId, createdAt])
 }
 
 model Invoice {
-  id            String   @id @default(cuid())
-  invoiceNumber String
-  poNumber      String
-  vendorName    String?
-  itemCode      String?
-  quantity      Int
-  unitPrice     Float
-  invoiceDate   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoiceNumber  String
+  poNumber       String
+  vendorName     String?
+  itemCode       String?
+  quantity       Int
+  unitPrice      Float
+  invoiceDate    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  @@index([invoiceNumber])
-  @@index([poNumber])
+  @@unique([id, organizationId])
+  @@index([organizationId, invoiceNumber])
+  @@index([organizationId, poNumber])
+  @@index([organizationId, createdAt])
 }
 
 model Exception {
-  id          String          @id @default(cuid())
-  title       String
-  description String?
-  type        ExceptionType
-  status      ExceptionStatus @default(OPEN)
-  poNumber    String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  title          String
+  description    String?
+  type           ExceptionType
+  status         ExceptionStatus @default(OPEN)
+  poNumber       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  @@index([status])
-  @@index([type])
-  @@index([poNumber])
+  @@unique([id, organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+  @@index([organizationId, poNumber])
+  @@index([organizationId, createdAt])
 }

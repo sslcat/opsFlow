@@ -5,16 +5,18 @@ import path from "path"
 
 const uploadDirectory = path.join(process.cwd(), "storage", "uploads")
 
-export async function ensureUploadDirectory() {
-  await mkdir(uploadDirectory, { recursive: true })
+export async function ensureUploadDirectory(storageKey: string) {
+  const filePath = getUploadFilePath(storageKey)
+  await mkdir(path.dirname(filePath), { recursive: true })
 }
 
-export function getUploadFilePath(fileName: string) {
-  const safeFileName = path.basename(fileName)
+export function getUploadFilePath(storageKey: string) {
+  const filePath = path.resolve(uploadDirectory, storageKey)
+  const uploadRoot = `${path.resolve(uploadDirectory)}${path.sep}`
 
-  if (safeFileName !== fileName) {
-    throw new Error("Invalid upload file name")
+  if (!filePath.startsWith(uploadRoot)) {
+    throw new Error("Invalid upload storage key")
   }
 
-  return path.join(uploadDirectory, safeFileName)
+  return filePath
 }

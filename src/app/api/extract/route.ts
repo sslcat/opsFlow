@@ -1,24 +1,39 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { getUploadFilePath } from "@/lib/uploads"
 import { readFile } from "fs/promises"
 import PDFParser from "pdf2json"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("document.process")
+  if (authorization.response) return authorization.response
 
   try {
     const body = await request.json()
-    const { fileName } = body
+    const { documentId } = body
 
-    if (!fileName) {
+    if (!documentId) {
       return Response.json(
-        { error: "fileName required" },
+        { error: "documentId required" },
         { status: 400 }
       )
     }
 
-    const fileBuffer = await readFile(getUploadFilePath(fileName))
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        organizationId: authorization.context.organizationId,
+      },
+    })
+
+    if (!document) {
+      return Response.json(
+        { error: "Document not found" },
+        { status: 404 },
+      )
+    }
+
+    const fileBuffer = await readFile(getUploadFilePath(document.storageKey))
 
     const pdfParser = new PDFParser()
 

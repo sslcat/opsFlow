@@ -1,9 +1,12 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { DocumentType } from "@prisma/client"
+import path from "path"
+import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("document.upload")
+  if (authorization.response) return authorization.response
 
   // Read request body
   const body = await request.json()
@@ -29,8 +32,10 @@ export async function POST(request: Request) {
   const document =
     await prisma.document.create({
       data: {
-        fileName,
-        type
+        organizationId: authorization.context.organizationId,
+        fileName: path.basename(fileName),
+        storageKey: `${authorization.context.organizationId}/${uuidv4()}`,
+        type: type as DocumentType,
       }
     })
 
@@ -41,11 +46,14 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("document.read")
+  if (authorization.response) return authorization.response
 
   const documents =
     await prisma.document.findMany({
+      where: {
+        organizationId: authorization.context.organizationId,
+      },
       orderBy: {
         createdAt: "desc"
       }

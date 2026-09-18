@@ -1,9 +1,9 @@
-import { requireApiAuthentication } from "@/lib/auth"
+import { authorizeApiRequest } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("exception.triage")
+  if (authorization.response) return authorization.response
 
   // Read JSON body
   const body = await request.json()
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const exception =
     await prisma.exception.create({
       data: {
+        organizationId: authorization.context.organizationId,
         title,
         description,
         type
@@ -43,11 +44,14 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const authenticationError = await requireApiAuthentication()
-  if (authenticationError) return authenticationError
+  const authorization = await authorizeApiRequest("exception.read")
+  if (authorization.response) return authorization.response
 
   const exceptions =
     await prisma.exception.findMany({
+      where: {
+        organizationId: authorization.context.organizationId,
+      },
       orderBy: {
         createdAt: "desc"
       }

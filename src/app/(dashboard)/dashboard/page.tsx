@@ -1,11 +1,12 @@
-import { auth } from "@clerk/nextjs/server"
+import { requirePagePermission } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-async function getDashboardData() {
+async function getDashboardData(organizationId: string) {
   const [organizationCount, documentCount, exceptions] = await Promise.all([
-    prisma.organization.count(),
-    prisma.document.count(),
+    prisma.organization.count({ where: { id: organizationId } }),
+    prisma.document.count({ where: { organizationId } }),
     prisma.exception.findMany({
+      where: { organizationId },
       orderBy: {
         createdAt: "desc",
       },
@@ -20,9 +21,13 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  await auth.protect()
+  const authorization = await requirePagePermission([
+    "organization.read",
+    "document.read",
+    "exception.read",
+  ])
 
-  const data = await getDashboardData()
+  const data = await getDashboardData(authorization.organizationId)
 
   const openExceptionCount =
     data.exceptions.filter(
