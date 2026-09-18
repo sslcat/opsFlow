@@ -60,7 +60,9 @@ The application combines a React-based frontend, server-side business logic, a r
 
 ## Authentication
 
-- Clerk (in progress)
+- Clerk
+- Server-side page protection
+- Authenticated API route handlers
 
 ## AI
 
@@ -74,6 +76,9 @@ The application combines a React-based frontend, server-side business logic, a r
 src/
 
 app/
+    sign-in/
+    sign-up/
+
     (dashboard)/
         layout.tsx
 
@@ -96,7 +101,11 @@ app/
 
 lib/
 
+    auth.ts
     prisma.ts
+    uploads.ts
+
+proxy.ts
 
 prisma/
 
@@ -112,6 +121,9 @@ The frontend uses the Next.js App Router.
 Pages are grouped inside the `(dashboard)` route group.
 
 Shared UI is implemented using layouts.
+
+The dashboard layout requires a Clerk session before rendering financial data.
+The sign-in and sign-up routes remain public.
 
 Example:
 
@@ -142,6 +154,12 @@ Exceptions
 # Backend Architecture
 
 Business logic is implemented using Next.js Route Handlers.
+
+Every Route Handler verifies the Clerk session before reading request data,
+accessing files, or querying Prisma.
+
+Uploaded PDFs are stored outside `public/` and can only be accessed through
+authenticated processing routes.
 
 Example:
 

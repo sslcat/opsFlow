@@ -1,20 +1,24 @@
+import { UserButton } from "@clerk/nextjs"
+import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  await auth.protect()
+
   return (
     <div className="flex min-h-screen">
 
-      <aside className="w-64 bg-gray-900 text-white p-6">
+      <aside className="flex w-64 flex-col bg-gray-900 p-6 text-white">
 
         <h1 className="text-2xl font-bold mb-8">
           OpsFlow
         </h1>
 
-        <nav className="space-y-4">
+        <nav className="flex-1 space-y-4">
 
           <Link
             href="/dashboard"
@@ -59,6 +63,17 @@ export default function DashboardLayout({
           </Link>
 
         </nav>
+
+        <div className="border-t border-gray-700 pt-6">
+          <UserButton
+            showName
+            appearance={{
+              elements: {
+                userButtonOuterIdentifier: "text-white",
+              },
+            }}
+          />
+        </div>
 
       </aside>
 

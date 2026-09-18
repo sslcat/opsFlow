@@ -1,16 +1,14 @@
-import type { Order } from "@prisma/client"
-
-async function getOrders() {
-  const response = await fetch("http://localhost:3000/api/orders", {
-    cache: "no-store"
-  })
-
-  return response.json() as Promise<{ orders: Order[] }>
-}
+import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 
 export default async function OrdersPage() {
-  const data = await getOrders()
-  const orders = data.orders || []
+  await auth.protect()
+
+  const orders = await prisma.order.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
 
   return (
     <div>

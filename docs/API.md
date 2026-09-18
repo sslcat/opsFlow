@@ -8,6 +8,9 @@ The APIs are organized around business entities rather than technical implementa
 
 All endpoints return JSON.
 
+All endpoints require an authenticated Clerk user. Anonymous requests receive a
+`401 Unauthorized` response before business logic runs.
+
 ---
 
 # Organizations
@@ -197,8 +200,6 @@ Exception Creation
 ---
 
 # Future APIs
-
-Authentication
 
 Organizations
 

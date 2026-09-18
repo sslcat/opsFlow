@@ -1,20 +1,14 @@
-import type { Invoice } from "@prisma/client"
-
-async function getInvoices() {
-  const response = await fetch(
-    "http://localhost:3000/api/invoices",
-    {
-      cache: "no-store"
-    }
-  )
-
-  return response.json() as Promise<{ invoices: Invoice[] }>
-}
+import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 
 export default async function InvoicesPage() {
-  const data = await getInvoices()
+  await auth.protect()
 
-  const invoices = data.invoices || []
+  const invoices = await prisma.invoice.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
 
   return (
     <div>

@@ -1,54 +1,31 @@
-import type {
-  Document as DocumentRecord,
-  Exception as ExceptionRecord,
-  Organization,
-} from "@prisma/client"
-
-type DashboardData = {
-  organizations: { organizations: Organization[] }
-  documents: { documents: DocumentRecord[] }
-  exceptions: { exceptions: ExceptionRecord[] }
-}
+import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 
 async function getDashboardData() {
-  const [
-    orgRes,
-    docRes,
-    excRes
-  ] = await Promise.all([
-    fetch("http://localhost:3000/api/organizations", {
-      cache: "no-store"
+  const [organizationCount, documentCount, exceptions] = await Promise.all([
+    prisma.organization.count(),
+    prisma.document.count(),
+    prisma.exception.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
     }),
-    fetch("http://localhost:3000/api/documents", {
-      cache: "no-store"
-    }),
-    fetch("http://localhost:3000/api/exceptions", {
-      cache: "no-store"
-    })
   ])
 
-  const organizations = await orgRes.json() as DashboardData["organizations"]
-  const documents = await docRes.json() as DashboardData["documents"]
-  const exceptions = await excRes.json() as DashboardData["exceptions"]
-
   return {
-    organizations,
-    documents,
-    exceptions
+    organizationCount,
+    documentCount,
+    exceptions,
   }
 }
 
 export default async function DashboardPage() {
+  await auth.protect()
+
   const data = await getDashboardData()
 
-  const orgCount =
-    data.organizations.organizations.length
-
-  const docCount =
-    data.documents.documents.length
-
   const openExceptionCount =
-    data.exceptions.exceptions.filter(
+    data.exceptions.filter(
       (exception) => exception.status === "OPEN"
     ).length
 
@@ -67,7 +44,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="text-4xl font-bold mt-2">
-            {orgCount}
+            {data.organizationCount}
           </div>
         </div>
 
@@ -77,7 +54,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="text-4xl font-bold mt-2">
-            {docCount}
+            {data.documentCount}
           </div>
         </div>
 
@@ -101,7 +78,7 @@ export default async function DashboardPage() {
 
         <div className="space-y-4">
 
-          {data.exceptions.exceptions.map(
+          {data.exceptions.map(
             (exception) => (
               <div
                 key={exception.id}

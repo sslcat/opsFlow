@@ -52,6 +52,10 @@ OPENAI_API_KEY
 
 Authentication
 
+- Verify anonymous dashboard requests redirect to sign in
+- Verify anonymous API requests return 401
+- Verify sign up, sign in, profile, and sign out flows
+
 Organizations
 
 Database

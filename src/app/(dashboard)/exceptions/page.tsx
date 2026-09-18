@@ -1,20 +1,15 @@
-import type { Exception as ExceptionRecord } from "@prisma/client"
+import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 import ResolveExceptionButton from "./resolve-exception-button"
 
-async function getExceptions() {
-  const response = await fetch(
-    "http://localhost:3000/api/exceptions",
-    {
-      cache: "no-store"
-    }
-  )
-
-  return response.json() as Promise<{ exceptions: ExceptionRecord[] }>
-}
-
 export default async function ExceptionsPage() {
-  const data = await getExceptions()
-  const exceptions = data.exceptions || []
+  await auth.protect()
+
+  const exceptions = await prisma.exception.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
 
   return (
     <div>

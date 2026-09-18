@@ -1,6 +1,9 @@
+import { requireApiAuthentication } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
 
   // Read incoming JSON body
   const body = await request.json()
@@ -34,6 +37,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   const organizations =
     await prisma.organization.findMany({
       orderBy: {

@@ -1,6 +1,10 @@
+import { requireApiAuthentication } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(request: Request) {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   const body = await request.json()
 
   const {
@@ -82,6 +86,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   const invoices = await prisma.invoice.findMany({
     orderBy: {
       createdAt: "desc"

@@ -1,17 +1,11 @@
+import { requireApiAuthentication } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getUploadFilePath } from "@/lib/uploads"
 import { readFile } from "fs/promises"
-import path from "path"
 import PDFParser from "pdf2json"
 
 async function extractPdfText(fileName: string) {
-  const filePath = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    fileName
-  )
-
-  const fileBuffer = await readFile(filePath)
+  const fileBuffer = await readFile(getUploadFilePath(fileName))
 
   const pdfParser = new PDFParser()
 
@@ -64,6 +58,9 @@ function parseInvoice(text: string) {
 }
 
 export async function POST(request: Request) {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   try {
     const body = await request.json()
     const { fileName } = body

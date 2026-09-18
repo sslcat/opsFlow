@@ -42,6 +42,8 @@ Build an enterprise-grade SaaS platform capable of handling procurement document
 
 Current MVP supports:
 
+- Clerk authentication
+- Protected dashboard and API access
 - Purchase Orders
 - Invoice Upload
 - PDF Text Extraction

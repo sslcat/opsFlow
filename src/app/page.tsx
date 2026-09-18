@@ -1,6 +1,8 @@
+import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 
 export default async function Home() {
+  await auth.protect()
 
   // Get counts from database
   const organizationCount =

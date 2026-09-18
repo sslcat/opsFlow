@@ -1,4 +1,9 @@
+import { requireApiAuthentication } from "@/lib/auth"
+
 export async function POST(request: Request) {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   try {
 
     const body = await request.json()

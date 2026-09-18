@@ -1,9 +1,13 @@
+import { requireApiAuthentication } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const authenticationError = await requireApiAuthentication()
+  if (authenticationError) return authenticationError
+
   try {
     const { id } = await context.params
     const body = await request.json()

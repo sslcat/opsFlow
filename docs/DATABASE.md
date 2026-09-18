@@ -154,7 +154,7 @@ Current fields
 
 Current storage
 
-- Uploaded PDFs
+- Private local uploaded PDFs (outside the public web root)
 
 Future storage
 
