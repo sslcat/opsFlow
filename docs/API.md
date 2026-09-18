@@ -138,6 +138,8 @@ Automatically compares against Purchase Orders in the active organization.
 
 Automatically creates exceptions when mismatches exist.
 
+Invoice creation and automatic Exception creation are committed atomically.
+
 ---
 
 # Exceptions
@@ -178,6 +180,13 @@ Future
 ## POST /api/upload
 
 Uploads invoice PDFs.
+
+Validation
+
+- PDF signature and media type
+- Non-empty payload
+- Maximum size of 4 MB
+- Valid document type
 
 Workflow
 
@@ -239,6 +248,9 @@ Purchase Order Matching
 ↓
 
 Exception Creation
+
+Repeating this request for the same Document returns the existing Invoice and
+does not create duplicate Invoices or Exceptions.
 
 ---
 

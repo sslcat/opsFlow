@@ -12,6 +12,10 @@ OpsFlow is a full-stack operations workflow platform built with Next.js, TypeScr
 * Purchase Order Reconciliation
 * Automated Exception Detection
 * Dashboard Analytics
+* Clerk Authentication
+* Multi-Tenant Authorization
+* Business Roles and Permissions
+* Private Cloud Document Storage
 
 ## Tech Stack
 
@@ -36,7 +40,7 @@ OpsFlow is a full-stack operations workflow platform built with Next.js, TypeScr
 1. Purchase Orders are stored in the system.
 2. Users upload invoice PDFs.
 3. The system extracts invoice data.
-4. Invoice data is matched against the corresponding Purchase Order (I fixed a recurring bug on 8/14/26; it should be working seamlessly now).
+4. Invoice data is matched against the corresponding Purchase Order.
 5. Exceptions are automatically generated when mismatches are detected.
 6. Users review exceptions through the dashboard.
 
@@ -64,9 +68,6 @@ OpsFlow automatically detects the price mismatch and creates an exception for re
 
 ## Future Enhancements
 
-* Exception Resolution Workflow
-* Authentication & Authorization
 * AI-Powered Invoice Extraction
-* Multi-Tenant Organizations
 * Analytics & Reporting
-* Cloud Deployment
+* Goods Receipts and 3-Way Matching

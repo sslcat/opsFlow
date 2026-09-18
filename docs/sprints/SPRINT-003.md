@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+In Progress
 
 ---
 
@@ -78,3 +78,28 @@ Deployment guide.
 Updated documentation.
 
 Successful production deployment.
+
+---
+
+# Implementation Notes
+
+- Prisma now uses a pooled `DATABASE_URL` for application traffic and a direct
+  `DIRECT_URL` for migrations.
+- Invoice creation, matching, and Exception creation share a transaction.
+- Processed Invoices have a unique tenant-scoped source Document link, making
+  processing retries idempotent.
+- Uploads validate PDF signatures, media types, document types, empty files,
+  and a 4 MB maximum.
+- Deployed uploads use private Vercel Blob storage while development retains
+  local private storage.
+- API errors use stable codes and no longer expose extraction text or internal
+  exception details.
+- Tenant route tests cover validation and idempotent reprocessing. An opt-in
+  database-backed suite is available through `npm run test:db` for disposable
+  test databases.
+- The production build no longer downloads fonts, and Next.js is patched to
+  16.3.5.
+- The Neon production schema has all five committed migrations applied.
+
+The sprint remains in progress until the Vercel production deployment and
+post-deployment smoke tests complete.

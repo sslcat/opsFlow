@@ -173,8 +173,13 @@ protected application operations with a last-administrator safeguard. These
 authorization changes are recorded in `AuthorizationAuditEvent`.
 
 Uploaded PDFs are stored outside `public/` under organization-scoped opaque
-storage keys. Processing routes accept an authorized Document ID and never a
-client-controlled storage path.
+storage keys. Deployed environments use a private Vercel Blob store; local
+development retains private filesystem storage. Processing routes accept an
+authorized Document ID and never a client-controlled storage path.
+
+Invoice creation, Purchase Order matching, Exception creation, and source
+Document status updates share a transaction. Each uploaded source Document can
+produce at most one Invoice, so client or platform retries are idempotent.
 
 Example:
 

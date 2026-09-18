@@ -156,7 +156,12 @@ Current fields
 
 Current storage
 
-- Private local uploaded PDFs (outside the public web root)
+- Private Vercel Blob storage in deployed environments
+- Private local uploaded PDFs outside the public web root in development
+
+`Document.storageKey` stores an organization-scoped opaque pathname rather
+than a public URL. `Invoice.sourceDocumentId` links a processed invoice to its
+tenant-owned source Document and makes processing retries idempotent.
 
 Future storage
 
