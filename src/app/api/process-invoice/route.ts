@@ -24,9 +24,9 @@ async function extractPdfText(fileName: string) {
       const pages = pdfData.Pages || []
 
       const text = pages
-        .flatMap((page: any) => page.Texts)
-        .flatMap((t: any) => t.R)
-        .map((r: any) => decodeURIComponent(r.T))
+        .flatMap((page) => page.Texts)
+        .flatMap((textObject) => textObject.R)
+        .map((run) => decodeURIComponent(run.T))
         .join(" ")
 
       resolve(text)

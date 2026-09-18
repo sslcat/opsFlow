@@ -1,3 +1,5 @@
+import type { Invoice } from "@prisma/client"
+
 async function getInvoices() {
   const response = await fetch(
     "http://localhost:3000/api/invoices",
@@ -6,7 +8,7 @@ async function getInvoices() {
     }
   )
 
-  return response.json()
+  return response.json() as Promise<{ invoices: Invoice[] }>
 }
 
 export default async function InvoicesPage() {
@@ -36,7 +38,7 @@ export default async function InvoicesPage() {
 
           <tbody>
 
-            {invoices.map((invoice: any) => (
+            {invoices.map((invoice) => (
               <tr
                 key={invoice.id}
                 className="border-b"

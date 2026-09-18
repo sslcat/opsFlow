@@ -1,3 +1,15 @@
+import type {
+  Document as DocumentRecord,
+  Exception as ExceptionRecord,
+  Organization,
+} from "@prisma/client"
+
+type DashboardData = {
+  organizations: { organizations: Organization[] }
+  documents: { documents: DocumentRecord[] }
+  exceptions: { exceptions: ExceptionRecord[] }
+}
+
 async function getDashboardData() {
   const [
     orgRes,
@@ -15,9 +27,9 @@ async function getDashboardData() {
     })
   ])
 
-  const organizations = await orgRes.json()
-  const documents = await docRes.json()
-  const exceptions = await excRes.json()
+  const organizations = await orgRes.json() as DashboardData["organizations"]
+  const documents = await docRes.json() as DashboardData["documents"]
+  const exceptions = await excRes.json() as DashboardData["exceptions"]
 
   return {
     organizations,
@@ -37,7 +49,7 @@ export default async function DashboardPage() {
 
   const openExceptionCount =
     data.exceptions.exceptions.filter(
-      (e: any) => e.status === "OPEN"
+      (exception) => exception.status === "OPEN"
     ).length
 
   return (
@@ -90,7 +102,7 @@ export default async function DashboardPage() {
         <div className="space-y-4">
 
           {data.exceptions.exceptions.map(
-            (exception: any) => (
+            (exception) => (
               <div
                 key={exception.id}
                 className="border rounded-lg p-4"

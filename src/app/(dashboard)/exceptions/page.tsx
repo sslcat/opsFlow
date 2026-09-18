@@ -1,3 +1,4 @@
+import type { Exception as ExceptionRecord } from "@prisma/client"
 import ResolveExceptionButton from "./resolve-exception-button"
 
 async function getExceptions() {
@@ -8,7 +9,7 @@ async function getExceptions() {
     }
   )
 
-  return response.json()
+  return response.json() as Promise<{ exceptions: ExceptionRecord[] }>
 }
 
 export default async function ExceptionsPage() {
@@ -34,7 +35,7 @@ export default async function ExceptionsPage() {
           </thead>
 
           <tbody>
-            {exceptions.map((exception: any) => (
+            {exceptions.map((exception) => (
               <tr key={exception.id} className="border-b">
                 <td className="p-4 font-semibold">
                   {exception.title}

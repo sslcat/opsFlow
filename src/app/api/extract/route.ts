@@ -35,9 +35,9 @@ export async function POST(request: Request) {
         const pages = pdfData.Pages || []
 
         const extractedText = pages
-          .flatMap((page: any) => page.Texts)
-          .flatMap((textObj: any) => textObj.R)
-          .map((r: any) => decodeURIComponent(r.T))
+          .flatMap((page) => page.Texts)
+          .flatMap((textObj) => textObj.R)
+          .map((run) => decodeURIComponent(run.T))
           .join(" ")
 
         resolve(extractedText)

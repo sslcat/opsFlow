@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import type { DocumentType } from "@prisma/client"
 import { writeFile } from "fs/promises"
 import { v4 as uuidv4 } from "uuid"
 import path from "path"
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
       await prisma.document.create({
         data: {
           fileName: uniqueFileName,
-          type: type as any
+          type: type as DocumentType
         }
       })
 

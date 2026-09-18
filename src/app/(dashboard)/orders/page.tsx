@@ -1,9 +1,11 @@
+import type { Order } from "@prisma/client"
+
 async function getOrders() {
   const response = await fetch("http://localhost:3000/api/orders", {
     cache: "no-store"
   })
 
-  return response.json()
+  return response.json() as Promise<{ orders: Order[] }>
 }
 
 export default async function OrdersPage() {
@@ -29,7 +31,7 @@ export default async function OrdersPage() {
           </thead>
 
           <tbody>
-            {orders.map((order: any) => (
+            {orders.map((order) => (
               <tr key={order.id} className="border-b">
                 <td className="p-4 font-semibold">
                   {order.poNumber}
