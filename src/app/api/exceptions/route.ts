@@ -1,5 +1,5 @@
-import { authorizeApiRequest } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { prisma } from "../../../lib/prisma.ts"
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest("exception.triage")

@@ -1,18 +1,11 @@
 import { requirePagePermission } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { getExceptionsPageData } from "@/lib/tenant-page-data"
 import ResolveExceptionButton from "./resolve-exception-button"
 
 export default async function ExceptionsPage() {
   const authorization = await requirePagePermission("exception.read")
 
-  const exceptions = await prisma.exception.findMany({
-    where: {
-      organizationId: authorization.organizationId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  })
+  const exceptions = await getExceptionsPageData(authorization.organizationId)
 
   return (
     <div>

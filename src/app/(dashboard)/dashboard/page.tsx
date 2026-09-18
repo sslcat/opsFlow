@@ -1,24 +1,5 @@
 import { requirePagePermission } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-
-async function getDashboardData(organizationId: string) {
-  const [organizationCount, documentCount, exceptions] = await Promise.all([
-    prisma.organization.count({ where: { id: organizationId } }),
-    prisma.document.count({ where: { organizationId } }),
-    prisma.exception.findMany({
-      where: { organizationId },
-      orderBy: {
-        createdAt: "desc",
-      },
-    }),
-  ])
-
-  return {
-    organizationCount,
-    documentCount,
-    exceptions,
-  }
-}
+import { getDashboardData } from "@/lib/tenant-page-data"
 
 export default async function DashboardPage() {
   const authorization = await requirePagePermission([

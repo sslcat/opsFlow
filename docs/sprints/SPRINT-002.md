@@ -120,9 +120,19 @@ Pull request.
   authorization context.
 - OpsFlow owns six system roles, the ADR-0003 permission keys, additive grants,
   and server-side permission enforcement.
+- Request-synchronized memberships always start as Auditor. The first
+  Organization Administrator is explicitly provisioned by an operator and the
+  decision is recorded in the authorization audit log.
+- Authorized administrators can assign one primary business role through the
+  tenant-scoped Settings workflow, which prevents removal of the last
+  administrator.
 - Existing business data is assigned to the explicitly named `OpsFlow Legacy
-  Data` organization by an expand-backfill-enforce migration.
+  Data` organization by an expand-backfill-enforce migration, then transferred
+  only by an explicit, audited operator claim for a selected tenant.
 - Documents, Orders, Invoices, and Exceptions have mandatory ownership and all
   supported queries are scoped to the active organization.
 - Invoice processing resolves a tenant-owned Document ID and preserves PDF
   extraction, matching, exception creation, and document status updates.
+- Two-organization integration tests cover authorization failures, tenant-
+  scoped reads and mutations, cross-tenant identifiers, page data, storage
+  ownership, concurrent membership synchronization, and role safeguards.

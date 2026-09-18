@@ -1,4 +1,4 @@
-import { authorizeApiRequest } from "@/lib/auth"
+import { authorizeApiRequest } from "../../../lib/auth.ts"
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest("invoice.process")

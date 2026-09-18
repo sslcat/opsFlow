@@ -28,6 +28,31 @@ Returns the active organization only.
 
 ---
 
+# Memberships and Business Roles
+
+## GET /api/memberships
+
+Returns memberships and available system roles for the active organization.
+Requires both `membership.read` and `role.read`.
+
+---
+
+## PUT /api/memberships/{id}/role
+
+Assigns one primary OpsFlow business role to a membership in the active
+organization. Requires both `membership.manage` and `role.manage`.
+
+```json
+{
+  "roleKey": "ap_manager"
+}
+```
+
+Membership IDs from another tenant return `404`. Reassigning the last
+Organization Administrator returns `409`.
+
+---
+
 ## POST /api/organizations
 
 Purpose

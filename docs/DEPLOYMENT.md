@@ -55,13 +55,15 @@ Authentication
 - Verify anonymous dashboard requests redirect to sign in
 - Verify anonymous API requests return 401
 - Verify users select an active Clerk organization
-- Verify the first membership bootstrap and later least-privileged membership behavior
+- Verify all request-synchronized memberships receive the least-privileged Auditor role
+- Explicitly provision the initial administrator using the audited operator command
 - Verify sign up, sign in, profile, and sign out flows
 
 Organizations
 
 - Apply the authorization migration before deploying tenant-aware application code
 - Verify legacy records belong to `OpsFlow Legacy Data`
+- Take a database snapshot, then explicitly claim legacy records for the approved tenant
 - Verify cross-tenant resource IDs return 404
 
 Database

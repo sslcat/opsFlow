@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node src/lib/authorization-policy.test.mts",
-    "typecheck": "tsc --noEmit"
+    "test": "node --experimental-test-module-mocks --loader ./tests/alias-loader.mjs --test --test-isolation=none src/lib/*.test.mts tests/*.test.mts",
+    "typecheck": "tsc --noEmit",
+    "auth:provision-admin": "node scripts/provision-organization-administrator.mts",
+    "auth:claim-legacy": "node scripts/claim-legacy-organization.mts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.13",

@@ -1,17 +1,10 @@
 import { requirePagePermission } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { getInvoicesPageData } from "@/lib/tenant-page-data"
 
 export default async function InvoicesPage() {
   const authorization = await requirePagePermission("invoice.read")
 
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      organizationId: authorization.organizationId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  })
+  const invoices = await getInvoicesPageData(authorization.organizationId)
 
   return (
     <div>

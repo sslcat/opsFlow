@@ -92,6 +92,7 @@ app/
     api/
 
         organizations/
+        memberships/
         documents/
         upload/
         process-invoice/
@@ -164,6 +165,12 @@ and effective additive permissions.
 
 Clerk owns authentication and identity-provider membership. OpsFlow owns
 business roles, permission grants, business ownership, and enforcement.
+
+New synchronized memberships always receive the Auditor role. Initial
+administrator provisioning is an explicit operator action, while later primary
+business-role assignments are performed through tenant-scoped, permission-
+protected application operations with a last-administrator safeguard. These
+authorization changes are recorded in `AuthorizationAuditEvent`.
 
 Uploaded PDFs are stored outside `public/` under organization-scoped opaque
 storage keys. Processing routes accept an authorized Document ID and never a

@@ -52,8 +52,23 @@ model Organization {
   orders              Order[]
   invoices            Invoice[]
   exceptions          Exception[]
+  authorizationEvents AuthorizationAuditEvent[]
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
+}
+
+model AuthorizationAuditEvent {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  action             String
+  actorIdentifier    String
+  targetMembershipId String?
+  metadata           Json?
+  createdAt          DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
 }
 
 model OrganizationMembership {

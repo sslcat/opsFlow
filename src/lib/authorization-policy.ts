@@ -36,9 +36,14 @@ export const SYSTEM_ROLE_KEYS = [
 export type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number]
 
 const permissionKeySet = new Set<string>(PERMISSION_KEYS)
+const systemRoleKeySet = new Set<string>(SYSTEM_ROLE_KEYS)
 
 export function isPermissionKey(value: string): value is PermissionKey {
   return permissionKeySet.has(value)
+}
+
+export function isSystemRoleKey(value: string): value is SystemRoleKey {
+  return systemRoleKeySet.has(value)
 }
 
 export function collectEffectivePermissions(permissionKeys: Iterable<string>) {

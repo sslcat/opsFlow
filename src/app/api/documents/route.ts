@@ -1,5 +1,5 @@
-import { authorizeApiRequest } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { prisma } from "../../../lib/prisma.ts"
 import type { DocumentType } from "@prisma/client"
 import path from "path"
 import { v4 as uuidv4 } from "uuid"

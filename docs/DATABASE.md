@@ -310,13 +310,21 @@ have multiple Roles through `MembershipRole`. Roles receive additive Permissions
 through `RolePermission`; explicit denies are not used.
 
 The seeded system roles are Organization Administrator, Controller, AP Manager,
-AP Specialist, Procurement, and Auditor. The first synchronized membership for
-a newly mapped Clerk organization is bootstrapped as Organization Administrator.
-Later synchronized memberships default to Auditor pending explicit business-role
-assignment.
+AP Specialist, Procurement, and Auditor. Every membership synchronized from an
+application request defaults to Auditor, including the first membership for a
+newly mapped Clerk organization. An operator explicitly provisions the initial
+Organization Administrator using the audited onboarding command. Authorized
+administrators assign one primary business role through the tenant-scoped
+Settings workflow; the last administrator cannot be reassigned.
 
 Document, Order, Invoice, and Exception each have a required `organizationId`.
 Document also has a server-controlled `storageKey`. All supported access paths
 scope these records to the active internal organization. Existing MVP records
 are backfilled to the explicitly named `OpsFlow Legacy Data` organization and
-are not silently assigned to a Clerk tenant.
+are not silently assigned to a Clerk tenant. An operator-controlled claim
+command transactionally transfers those records to a specifically named Clerk
+tenant after checking Purchase Order uniqueness conflicts.
+
+`AuthorizationAuditEvent` records initial administrator provisioning, business
+role assignments, and legacy ownership claims with an operator/actor identifier
+and operation metadata.

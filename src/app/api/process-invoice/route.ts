@@ -1,6 +1,6 @@
-import { authorizeApiRequest } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { getUploadFilePath } from "@/lib/uploads"
+import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { prisma } from "../../../lib/prisma.ts"
+import { getUploadFilePath } from "../../../lib/uploads.ts"
 import { readFile } from "fs/promises"
 import PDFParser from "pdf2json"
 
