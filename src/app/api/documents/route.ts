@@ -1,6 +1,7 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError } from "../../../lib/api-response.ts"
 import { prisma } from "../../../lib/prisma.ts"
-import type { DocumentType } from "@prisma/client"
+import { DocumentType } from "@prisma/client"
 import path from "path"
 import { v4 as uuidv4 } from "uuid"
 
@@ -17,15 +18,13 @@ export async function POST(request: Request) {
   } = body
 
   // Validation
-  if (!fileName || !type) {
-    return Response.json(
-      {
-        error: "fileName and type are required"
-      },
-      {
-        status: 400
-      }
-    )
+  if (
+    typeof fileName !== "string" ||
+    !fileName.trim() ||
+    typeof type !== "string" ||
+    !Object.values(DocumentType).includes(type as DocumentType)
+  ) {
+    return apiError(400, "BAD_REQUEST", "fileName and a valid type are required")
   }
 
   // Create document record
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
     await prisma.document.create({
       data: {
         organizationId: authorization.context.organizationId,
-        fileName: path.basename(fileName),
+        fileName: path.basename(fileName).slice(0, 255),
         storageKey: `${authorization.context.organizationId}/${uuidv4()}`,
         type: type as DocumentType,
       }

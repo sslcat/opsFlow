@@ -1,97 +1,73 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../lib/api-response.ts"
+import { createInvoiceWithMatching } from "../../../lib/invoice-processing.ts"
 import { prisma } from "../../../lib/prisma.ts"
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest([
     "invoice.create",
     "invoice.process",
+    "exception.triage",
   ])
   if (authorization.response) return authorization.response
   const { organizationId } = authorization.context
 
-  const body = await request.json()
-
-  const {
-    invoiceNumber,
-    poNumber,
-    vendorName,
-    itemCode,
-    quantity,
-    unitPrice,
-    invoiceDate
-  } = body
-
-  if (!invoiceNumber || !poNumber || quantity === undefined || unitPrice === undefined) {
-    return Response.json(
-      {
-        error: "invoiceNumber, poNumber, quantity, and unitPrice are required"
-      },
-      {
-        status: 400
-      }
-    )
-  }
-
-  const invoice = await prisma.invoice.create({
-    data: {
-      organizationId,
+  try {
+    const body = await request.json()
+    const {
       invoiceNumber,
       poNumber,
       vendorName,
       itemCode,
       quantity,
       unitPrice,
-      invoiceDate: invoiceDate ? new Date(invoiceDate) : null
-    }
-  })
+      invoiceDate,
+    } = body
 
-  const order = await prisma.order.findFirst({
-    where: {
-      organizationId,
-      poNumber
+    if (
+      typeof invoiceNumber !== "string" ||
+      !invoiceNumber.trim() ||
+      typeof poNumber !== "string" ||
+      !poNumber.trim() ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0 ||
+      typeof unitPrice !== "number" ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0
+    ) {
+      return apiError(
+        400,
+        "BAD_REQUEST",
+        "invoiceNumber, poNumber, a positive integer quantity, and a non-negative unitPrice are required",
+      )
     }
-  })
 
-  if (!order) {
-    await prisma.exception.create({
-      data: {
+    const parsedInvoiceDate = invoiceDate ? new Date(invoiceDate) : null
+    if (parsedInvoiceDate && Number.isNaN(parsedInvoiceDate.getTime())) {
+      return apiError(400, "BAD_REQUEST", "invoiceDate must be a valid date")
+    }
+
+    const invoice = await prisma.$transaction((transaction) =>
+      createInvoiceWithMatching(transaction, {
         organizationId,
-        title: "Missing purchase order",
-        description: `No purchase order found for invoice ${invoiceNumber}`,
-        type: "MISSING_DOCUMENT",
-        poNumber
-      }
+        invoiceNumber: invoiceNumber.trim(),
+        poNumber: poNumber.trim(),
+        vendorName,
+        itemCode,
+        quantity,
+        unitPrice,
+        invoiceDate: parsedInvoiceDate,
+      }),
+    )
+
+    return Response.json({
+      message: "Invoice created and checked",
+      invoice,
     })
-  } else {
-    if (order.quantity !== quantity) {
-      await prisma.exception.create({
-        data: {
-          organizationId,
-          title: "Invoice quantity mismatch",
-          description: `PO ${poNumber} expected quantity ${order.quantity}, but invoice ${invoiceNumber} has quantity ${quantity}`,
-          type: "QUANTITY_MISMATCH",
-          poNumber
-        }
-      })
-    }
-
-    if (order.unitPrice !== unitPrice) {
-      await prisma.exception.create({
-        data: {
-          organizationId,
-          title: "Invoice price mismatch",
-          description: `PO ${poNumber} expected unit price ${order.unitPrice}, but invoice ${invoiceNumber} has unit price ${unitPrice}`,
-          type: "PRICE_MISMATCH",
-          poNumber
-        }
-      })
-    }
+  } catch (error) {
+    logServerError("Invoice creation", error)
+    return apiError(500, "INTERNAL_ERROR", "Invoice creation failed")
   }
-
-  return Response.json({
-    message: "Invoice created and checked",
-    invoice
-  })
 }
 
 export async function GET() {
@@ -99,15 +75,9 @@ export async function GET() {
   if (authorization.response) return authorization.response
 
   const invoices = await prisma.invoice.findMany({
-    where: {
-      organizationId: authorization.context.organizationId,
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
+    where: { organizationId: authorization.context.organizationId },
+    orderBy: { createdAt: "desc" },
   })
 
-  return Response.json({
-    invoices
-  })
+  return Response.json({ invoices })
 }

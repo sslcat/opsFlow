@@ -1,8 +1,11 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../lib/api-response.ts"
+import { extractPdfText } from "../../../lib/invoice-extraction.ts"
 import { prisma } from "../../../lib/prisma.ts"
-import { getUploadFilePath } from "../../../lib/uploads.ts"
-import { readFile } from "fs/promises"
-import PDFParser from "pdf2json"
+import { readUpload } from "../../../lib/uploads.ts"
+
+export const runtime = "nodejs"
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest("document.process")
@@ -12,11 +15,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { documentId } = body
 
-    if (!documentId) {
-      return Response.json(
-        { error: "documentId required" },
-        { status: 400 }
-      )
+    if (typeof documentId !== "string" || !documentId.trim()) {
+      return apiError(400, "BAD_REQUEST", "documentId is required")
     }
 
     const document = await prisma.document.findFirst({
@@ -27,54 +27,17 @@ export async function POST(request: Request) {
     })
 
     if (!document) {
-      return Response.json(
-        { error: "Document not found" },
-        { status: 404 },
-      )
+      return apiError(404, "NOT_FOUND", "Document not found")
     }
 
-    const fileBuffer = await readFile(getUploadFilePath(document.storageKey))
-
-    const pdfParser = new PDFParser()
-
-    const text = await new Promise<string>((resolve, reject) => {
-
-      pdfParser.on("pdfParser_dataError", err => {
-        reject(err)
-      })
-
-      pdfParser.on("pdfParser_dataReady", pdfData => {
-        const pages = pdfData.Pages || []
-
-        const extractedText = pages
-          .flatMap((page) => page.Texts)
-          .flatMap((textObj) => textObj.R)
-          .map((run) => decodeURIComponent(run.T))
-          .join(" ")
-
-        resolve(extractedText)
-      })
-
-      pdfParser.parseBuffer(fileBuffer)
-    })
+    const text = await extractPdfText(await readUpload(document.storageKey))
 
     return Response.json({
       text
     })
 
   } catch (error) {
-    console.error(error)
-
-    return Response.json(
-      {
-        error: "Extraction failed",
-        details: error instanceof Error
-          ? error.message
-          : String(error)
-      },
-      {
-        status: 500
-      }
-    )
+    logServerError("PDF extraction", error)
+    return apiError(500, "INTERNAL_ERROR", "Extraction failed")
   }
 }

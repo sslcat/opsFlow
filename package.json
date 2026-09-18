@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-test-module-mocks --loader ./tests/alias-loader.mjs --test --test-isolation=none src/lib/*.test.mts tests/*.test.mts",
+    "test:db": "node --test tests/database-authorization.integration.test.mts",
     "typecheck": "tsc --noEmit",
     "auth:provision-admin": "node scripts/provision-organization-administrator.mts",
     "auth:claim-legacy": "node scripts/claim-legacy-organization.mts"
@@ -15,10 +16,10 @@
   "dependencies": {
     "@clerk/nextjs": "^7.5.13",
     "@prisma/client": "^6.19.3",
+    "@vercel/blob": "^2.8.0",
     "dotenv": "^17.4.2",
-    "next": "16.2.6",
+    "next": "^16.3.5",
     "pdf2json": "^4.0.3",
-    "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "uuid": "^14.0.0"
@@ -30,7 +31,8 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "^16.3.5",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

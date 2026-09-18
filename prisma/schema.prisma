@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum DocumentType {
@@ -44,8 +45,8 @@ model User {
 }
 
 model Organization {
-  id                  String                   @id @default(cuid())
-  clerkOrganizationId String?                  @unique
+  id                  String                    @id @default(cuid())
+  clerkOrganizationId String?                   @unique
   name                String
   memberships         OrganizationMembership[]
   documents           Document[]
@@ -53,8 +54,8 @@ model Organization {
   invoices            Invoice[]
   exceptions          Exception[]
   authorizationEvents AuthorizationAuditEvent[]
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
 }
 
 model AuthorizationAuditEvent {
@@ -137,6 +138,7 @@ model Document {
   status         DocumentStatus @default(UPLOADED)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  invoices       Invoice[]
 
   @@unique([id, organizationId])
   @@index([organizationId, createdAt])
@@ -162,20 +164,23 @@ model Order {
 }
 
 model Invoice {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  invoiceNumber  String
-  poNumber       String
-  vendorName     String?
-  itemCode       String?
-  quantity       Int
-  unitPrice      Float
-  invoiceDate    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceDocumentId String?
+  sourceDocument   Document?    @relation(fields: [sourceDocumentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  invoiceNumber    String
+  poNumber         String
+  vendorName       String?
+  itemCode         String?
+  quantity         Int
+  unitPrice        Float
+  invoiceDate      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@unique([id, organizationId])
+  @@unique([organizationId, sourceDocumentId])
   @@index([organizationId, invoiceNumber])
   @@index([organizationId, poNumber])
   @@index([organizationId, createdAt])

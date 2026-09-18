@@ -6,6 +6,7 @@ const ORGANIZATION_B = "organization-b"
 const operations: Array<{ operation: string; args: unknown }> = []
 let authorizationStatus: "authorized" | "anonymous" | "forbidden" = "authorized"
 let roleAssignmentMode: "member" | "last-admin" = "member"
+let existingSourceInvoice = false
 
 type FakePrisma = {
   [key: string]: unknown
@@ -79,6 +80,7 @@ const prisma: FakePrisma = {
         id: "document-a",
         organizationId: ORGANIZATION_A,
         type: "INVOICE",
+        status: "UPLOADED",
         storageKey: `${ORGANIZATION_A}/opaque-key`,
       }
     },
@@ -109,6 +111,21 @@ const prisma: FakePrisma = {
     findMany: async (args: unknown) => {
       track("invoice.findMany", args)
       return [{ id: "invoice-a", organizationId: ORGANIZATION_A }]
+    },
+    findFirst: async (args: unknown) => {
+      track("invoice.findFirst", args)
+      return existingSourceInvoice
+        ? {
+            id: "invoice-a",
+            organizationId: ORGANIZATION_A,
+            invoiceNumber: "INV-1",
+            poNumber: "PO-1",
+            vendorName: "Vendor",
+            itemCode: "ITEM-1",
+            quantity: 10,
+            unitPrice: 5,
+          }
+        : null
     },
   },
   exception: {
@@ -237,12 +254,15 @@ mock.module(new URL("../src/lib/prisma.ts", import.meta.url).href, {
 })
 mock.module(new URL("../src/lib/uploads.ts", import.meta.url).href, {
   namedExports: {
-    ensureUploadDirectory: async (storageKey: string) => {
-      uploadCalls.push(`mkdir:${storageKey}`)
+    storeUpload: async (storageKey: string) => {
+      uploadCalls.push(`store:${storageKey}`)
     },
-    getUploadFilePath: (storageKey: string) => {
-      uploadCalls.push(`path:${storageKey}`)
-      return `C:/test-uploads/${storageKey}`
+    readUpload: async (storageKey: string) => {
+      uploadCalls.push(`read:${storageKey}`)
+      throw new Error("An unexpected document must not be read")
+    },
+    deleteUpload: async (storageKey: string) => {
+      uploadCalls.push(`delete:${storageKey}`)
     },
   },
 })
@@ -404,7 +424,7 @@ test("uploaded document storage and metadata are scoped to the active organizati
   uploadCalls.length = 0
 
   const formData = new FormData()
-  formData.set("file", new File(["pdf"], "../invoice.pdf", { type: "application/pdf" }))
+  formData.set("file", new File(["%PDF-1.4\n"], "../invoice.pdf", { type: "application/pdf" }))
   formData.set("type", "INVOICE")
   const response = await uploadRoute.POST(
     new Request("http://opsflow/api/upload", { method: "POST", body: formData }),
@@ -417,6 +437,51 @@ test("uploaded document storage and metadata are scoped to the active organizati
   assert.equal(data.fileName, "invoice.pdf")
   assert.match(data.storageKey, new RegExp(`^${ORGANIZATION_A}/`))
   assert.ok(uploadCalls.every((call) => !call.includes("..")))
+})
+
+test("upload validation rejects disguised and oversized files before storage", async () => {
+  authorizationStatus = "authorized"
+  uploadCalls.length = 0
+
+  const disguised = new FormData()
+  disguised.set("file", new File(["not a pdf"], "invoice.pdf", { type: "application/pdf" }))
+  disguised.set("type", "INVOICE")
+  const disguisedResponse = await uploadRoute.POST(
+    new Request("http://opsflow/api/upload", { method: "POST", body: disguised }),
+  )
+
+  const oversized = new FormData()
+  oversized.set(
+    "file",
+    new File([new Uint8Array(4 * 1024 * 1024 + 1)], "invoice.pdf", {
+      type: "application/pdf",
+    }),
+  )
+  oversized.set("type", "INVOICE")
+  const oversizedResponse = await uploadRoute.POST(
+    new Request("http://opsflow/api/upload", { method: "POST", body: oversized }),
+  )
+
+  assert.equal(disguisedResponse.status, 400)
+  assert.equal(oversizedResponse.status, 400)
+  assert.equal(uploadCalls.length, 0)
+})
+
+test("reprocessing a linked document returns its invoice without reading storage", async () => {
+  authorizationStatus = "authorized"
+  existingSourceInvoice = true
+  uploadCalls.length = 0
+
+  const response = await processInvoiceRoute.POST(
+    jsonRequest("/api/process-invoice", { documentId: "document-a" }),
+  )
+  const body = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(body.idempotent, true)
+  assert.equal(body.invoice.id, "invoice-a")
+  assert.equal(uploadCalls.length, 0)
+  existingSourceInvoice = false
 })
 
 test("role assignment hides foreign memberships and preserves the last administrator", async () => {

@@ -1,4 +1,5 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError } from "../../../lib/api-response.ts"
 import { prisma } from "../../../lib/prisma.ts"
 
 export async function POST(request: Request) {
@@ -16,26 +17,36 @@ export async function POST(request: Request) {
     expectedDate
   } = body
 
-  if (!poNumber || quantity === undefined || unitPrice === undefined) {
-    return Response.json(
-      {
-        error: "poNumber, quantity, and unitPrice are required"
-      },
-      {
-        status: 400
-      }
+  if (
+    typeof poNumber !== "string" ||
+    !poNumber.trim() ||
+    !Number.isInteger(quantity) ||
+    quantity <= 0 ||
+    typeof unitPrice !== "number" ||
+    !Number.isFinite(unitPrice) ||
+    unitPrice < 0
+  ) {
+    return apiError(
+      400,
+      "BAD_REQUEST",
+      "poNumber, a positive integer quantity, and a non-negative unitPrice are required",
     )
+  }
+
+  const parsedExpectedDate = expectedDate ? new Date(expectedDate) : null
+  if (parsedExpectedDate && Number.isNaN(parsedExpectedDate.getTime())) {
+    return apiError(400, "BAD_REQUEST", "expectedDate must be a valid date")
   }
 
   const order = await prisma.order.create({
     data: {
       organizationId: authorization.context.organizationId,
-      poNumber,
+      poNumber: poNumber.trim(),
       vendorName,
       itemCode,
       quantity,
       unitPrice,
-      expectedDate: expectedDate ? new Date(expectedDate) : null
+      expectedDate: parsedExpectedDate,
     }
   })
 

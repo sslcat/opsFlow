@@ -1,4 +1,5 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError } from "../../../lib/api-response.ts"
 import { prisma } from "../../../lib/prisma.ts"
 
 export async function POST(request: Request) {
@@ -12,15 +13,8 @@ export async function POST(request: Request) {
   const { name } = body
 
   // Basic validation
-  if (!name) {
-    return Response.json(
-      {
-        error: "Organization name is required"
-      },
-      {
-        status: 400
-      }
-    )
+  if (typeof name !== "string" || !name.trim()) {
+    return apiError(400, "BAD_REQUEST", "Organization name is required")
   }
 
   const organization = await prisma.organization.update({
@@ -28,7 +22,7 @@ export async function POST(request: Request) {
       id: authorization.context.organizationId,
     },
     data: {
-      name
+      name: name.trim(),
     }
   })
 

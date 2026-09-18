@@ -16,7 +16,7 @@ export async function runSerializableTransaction<T>(
     } catch (error) {
       const isRetryableConflict =
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        (error.code === "P2002" || error.code === "P2034")
+        error.code === "P2034"
 
       if (!isRetryableConflict || attempt === MAX_TRANSACTION_ATTEMPTS - 1) {
         throw error

@@ -8,6 +8,7 @@ import {
   type PermissionKey,
 } from "@/lib/authorization-policy"
 import { synchronizeAuthorizationIdentity } from "@/lib/authorization-identity"
+import { apiError } from "@/lib/api-response"
 
 export type AuthorizationContext = {
   clerkUserId: string
@@ -87,9 +88,10 @@ export async function authorizeApiRequest(
   if (!resolution.context) {
     return {
       context: null,
-      response: Response.json(
-        { error: resolution.error },
-        { status: resolution.status },
+      response: apiError(
+        resolution.status,
+        resolution.status === 401 ? "AUTHENTICATION_REQUIRED" : "FORBIDDEN",
+        resolution.error,
       ),
     }
   }
@@ -99,9 +101,10 @@ export async function authorizeApiRequest(
   if (!hasEveryPermission(resolution.context.permissions, requiredPermissions)) {
     return {
       context: null,
-      response: Response.json(
-        { error: "You do not have permission to perform this action" },
-        { status: 403 },
+      response: apiError(
+        403,
+        "FORBIDDEN",
+        "You do not have permission to perform this action",
       ),
     }
   }

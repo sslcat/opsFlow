@@ -1,232 +1,160 @@
+import { Prisma } from "@prisma/client"
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../lib/api-response.ts"
+import {
+  extractPdfText,
+  isCompleteParsedInvoice,
+  parseInvoice,
+} from "../../../lib/invoice-extraction.ts"
+import { createInvoiceWithMatching } from "../../../lib/invoice-processing.ts"
 import { prisma } from "../../../lib/prisma.ts"
-import { getUploadFilePath } from "../../../lib/uploads.ts"
-import { readFile } from "fs/promises"
-import PDFParser from "pdf2json"
+import { runSerializableTransaction } from "../../../lib/serializable-transaction.ts"
+import { readUpload } from "../../../lib/uploads.ts"
 
-async function extractPdfText(storageKey: string) {
-  const fileBuffer = await readFile(getUploadFilePath(storageKey))
-
-  const pdfParser = new PDFParser()
-
-  return new Promise<string>((resolve, reject) => {
-    pdfParser.on("pdfParser_dataError", err => {
-      reject(err)
-    })
-
-    pdfParser.on("pdfParser_dataReady", pdfData => {
-      const pages = pdfData.Pages || []
-
-      const text = pages
-        .flatMap((page) => page.Texts)
-        .flatMap((textObject) => textObject.R)
-        .map((run) => decodeURIComponent(run.T))
-        .join(" ")
-
-      resolve(text)
-    })
-
-    pdfParser.parseBuffer(fileBuffer)
-  })
-}
-
-function parseInvoice(text: string) {
-  const lineItemMatch =
-    text.match(
-      /(ITEM-[A-Z0-9-]+)\s+(.+?)\s+(\d+)\s+\$(\d+(?:\.\d+)?)\s+\$[\d,]+(?:\.\d+)?/i
-    )
-
-  return {
-    invoiceNumber:
-      text.match(/Invoice Number:\s*([A-Z0-9-]+)/i)?.[1],
-
-    poNumber:
-      text.match(/Purchase Order:\s*([A-Z0-9-]+)/i)?.[1],
-
-    vendorName:
-      text.match(/Vendor:\s*(.*?)(?=\s+Bill To:)/i)?.[1]?.trim(),
-
-    itemCode:
-      lineItemMatch?.[1],
-
-    quantity:
-      Number(lineItemMatch?.[3]),
-
-    unitPrice:
-      Number(lineItemMatch?.[4])
-  }
-}
+export const runtime = "nodejs"
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest([
     "document.process",
+    "invoice.create",
     "invoice.process",
+    "exception.triage",
   ])
   if (authorization.response) return authorization.response
   const { organizationId } = authorization.context
+  let sourceDocumentId: string | undefined
 
   try {
-    const body = await request.json()
-    const { documentId } = body
+    const body: unknown = await request.json()
+    const documentId =
+      typeof body === "object" && body !== null && "documentId" in body
+        ? (body as { documentId?: unknown }).documentId
+        : undefined
 
-    if (!documentId) {
-      return Response.json(
-        {
-          error: "documentId is required"
-        },
-        {
-          status: 400
-        }
-      )
+    if (typeof documentId !== "string" || !documentId.trim()) {
+      return apiError(400, "BAD_REQUEST", "documentId is required")
     }
 
     const document = await prisma.document.findFirst({
-      where: {
-        id: documentId,
-        organizationId,
-        type: "INVOICE",
-      },
+      where: { id: documentId, organizationId, type: "INVOICE" },
     })
 
     if (!document) {
-      return Response.json(
-        { error: "Document not found" },
-        { status: 404 },
+      return apiError(404, "NOT_FOUND", "Document not found")
+    }
+    sourceDocumentId = document.id
+
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { organizationId, sourceDocumentId: document.id },
+    })
+
+    if (existingInvoice) {
+      return Response.json({
+        message: "Invoice already processed",
+        parsed: invoiceToParsed(existingInvoice),
+        invoice: existingInvoice,
+        idempotent: true,
+      })
+    }
+
+    if (document.status === "PARSED") {
+      return apiError(
+        409,
+        "CONFLICT",
+        "This legacy document was already processed",
       )
     }
 
-    const extractedText =
-      await extractPdfText(document.storageKey)
+    const fileBuffer = await readUpload(document.storageKey)
+    const parsed = parseInvoice(await extractPdfText(fileBuffer))
 
-    console.log("EXTRACTED TEXT:", extractedText)
-
-    const parsed =
-      parseInvoice(extractedText)
-
-    if (
-      !parsed.invoiceNumber ||
-      !parsed.poNumber ||
-      !parsed.vendorName ||
-      !parsed.itemCode ||
-      Number.isNaN(parsed.quantity) ||
-      Number.isNaN(parsed.unitPrice)
-    ) {
+    if (!isCompleteParsedInvoice(parsed)) {
       await prisma.document.update({
-        where: {
-          id_organizationId: {
-            id: document.id,
-            organizationId,
-          },
-        },
+        where: { id_organizationId: { id: document.id, organizationId } },
         data: { status: "FAILED" },
       })
 
-      return Response.json(
-        {
-          error: "Could not extract all required invoice fields",
-          parsed,
-          extractedText
-        },
-        {
-          status: 400
-        }
+      return apiError(
+        400,
+        "BAD_REQUEST",
+        "Could not extract all required invoice fields",
       )
     }
 
-    const invoiceNumber = parsed.invoiceNumber
-    const poNumber = parsed.poNumber
-    const vendorName = parsed.vendorName
-    const itemCode = parsed.itemCode
-
-    const invoice = await prisma.$transaction(async (transaction) => {
-      const createdInvoice = await transaction.invoice.create({
-        data: {
-          organizationId,
-          invoiceNumber,
-          poNumber,
-          vendorName,
-          itemCode,
-          quantity: parsed.quantity,
-          unitPrice: parsed.unitPrice
-        }
+    const result = await runSerializableTransaction(async (transaction) => {
+      const alreadyCreated = await transaction.invoice.findFirst({
+        where: { organizationId, sourceDocumentId: document.id },
       })
 
-      const order = await transaction.order.findFirst({
-        where: {
-          organizationId,
-          poNumber
-        }
-      })
-
-      if (!order) {
-        await transaction.exception.create({
-          data: {
-            organizationId,
-            title: "Missing purchase order",
-            description:
-              `No purchase order found for invoice ${invoiceNumber}`,
-            type: "MISSING_DOCUMENT",
-            poNumber
-          }
-        })
-      } else {
-        if (order.unitPrice !== parsed.unitPrice) {
-          await transaction.exception.create({
-            data: {
-              organizationId,
-              title: "Invoice price mismatch",
-              description:
-                `PO ${poNumber} expected ${order.unitPrice}, invoice has ${parsed.unitPrice}`,
-              type: "PRICE_MISMATCH",
-              poNumber
-            }
-          })
-        }
-
-        if (order.quantity !== parsed.quantity) {
-          await transaction.exception.create({
-            data: {
-              organizationId,
-              title: "Invoice quantity mismatch",
-              description:
-                `PO ${poNumber} expected ${order.quantity}, invoice has ${parsed.quantity}`,
-              type: "QUANTITY_MISMATCH",
-              poNumber
-            }
-          })
-        }
+      if (alreadyCreated) {
+        return { invoice: alreadyCreated, created: false }
       }
 
+      const invoice = await createInvoiceWithMatching(transaction, {
+        organizationId,
+        sourceDocumentId: document.id,
+        invoiceNumber: parsed.invoiceNumber,
+        poNumber: parsed.poNumber,
+        vendorName: parsed.vendorName,
+        itemCode: parsed.itemCode,
+        quantity: parsed.quantity,
+        unitPrice: parsed.unitPrice,
+      })
+
       await transaction.document.update({
-        where: {
-          id_organizationId: {
-            id: document.id,
-            organizationId,
-          },
-        },
+        where: { id_organizationId: { id: document.id, organizationId } },
         data: { status: "PARSED" },
       })
 
-      return createdInvoice
+      return { invoice, created: true }
     })
 
     return Response.json({
-      message: "Invoice processed",
+      message: result.created ? "Invoice processed" : "Invoice already processed",
       parsed,
-      invoice
+      invoice: result.invoice,
+      idempotent: !result.created,
     })
-
   } catch (error) {
-    console.error(error)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      sourceDocumentId
+    ) {
+      const existingInvoice = await prisma.invoice.findFirst({
+        where: { organizationId, sourceDocumentId },
+      })
 
-    return Response.json(
-      {
-        error: "Processing failed",
-        details: error instanceof Error ? error.message : String(error)
-      },
-      {
-        status: 500
+      if (existingInvoice) {
+        return Response.json({
+          message: "Invoice already processed",
+          parsed: invoiceToParsed(existingInvoice),
+          invoice: existingInvoice,
+          idempotent: true,
+        })
       }
-    )
+    }
+
+    logServerError("Invoice processing", error)
+    return apiError(500, "INTERNAL_ERROR", "Processing failed")
+  }
+}
+
+function invoiceToParsed(invoice: {
+  invoiceNumber: string
+  poNumber: string
+  vendorName: string | null
+  itemCode: string | null
+  quantity: number
+  unitPrice: number
+}) {
+  return {
+    invoiceNumber: invoice.invoiceNumber,
+    poNumber: invoice.poNumber,
+    vendorName: invoice.vendorName ?? undefined,
+    itemCode: invoice.itemCode ?? undefined,
+    quantity: invoice.quantity,
+    unitPrice: invoice.unitPrice,
   }
 }

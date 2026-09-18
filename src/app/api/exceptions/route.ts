@@ -1,5 +1,7 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError } from "../../../lib/api-response.ts"
 import { prisma } from "../../../lib/prisma.ts"
+import { ExceptionType } from "@prisma/client"
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest("exception.triage")
@@ -15,15 +17,13 @@ export async function POST(request: Request) {
   } = body
 
   // Validation
-  if (!title || !type) {
-    return Response.json(
-      {
-        error: "title and type required"
-      },
-      {
-        status: 400
-      }
-    )
+  if (
+    typeof title !== "string" ||
+    !title.trim() ||
+    typeof type !== "string" ||
+    !Object.values(ExceptionType).includes(type as ExceptionType)
+  ) {
+    return apiError(400, "BAD_REQUEST", "title and a valid type are required")
   }
 
   // Create exception
@@ -31,9 +31,9 @@ export async function POST(request: Request) {
     await prisma.exception.create({
       data: {
         organizationId: authorization.context.organizationId,
-        title,
+        title: title.trim(),
         description,
-        type
+        type: type as ExceptionType,
       }
     })
 

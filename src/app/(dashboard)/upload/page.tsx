@@ -16,45 +16,48 @@ export default function UploadPage() {
     setIsUploading(true)
     setMessage("Uploading...")
 
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("type", "INVOICE")
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", "INVOICE")
 
-    const uploadResponse = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    })
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
 
-    const uploadData = await uploadResponse.json()
+      const uploadData = await uploadResponse.json()
 
-    if (!uploadResponse.ok) {
-      setMessage(uploadData.error || "Upload failed.")
+      if (!uploadResponse.ok) {
+        setMessage(uploadData.error || "Upload failed.")
+        return
+      }
+
+      setMessage("File uploaded. Processing invoice...")
+
+      const processResponse = await fetch("/api/process-invoice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentId: uploadData.document.id,
+        }),
+      })
+
+      const processData = await processResponse.json()
+
+      if (!processResponse.ok) {
+        setMessage(processData.error || "Invoice processing failed.")
+        return
+      }
+
+      setMessage("Invoice uploaded and processed successfully.")
+    } catch {
+      setMessage("The upload could not be completed. Please try again.")
+    } finally {
       setIsUploading(false)
-      return
     }
-
-    setMessage("File uploaded. Processing invoice...")
-
-    const processResponse = await fetch("/api/process-invoice", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        documentId: uploadData.document.id,
-      }),
-    })
-
-    const processData = await processResponse.json()
-
-    if (!processResponse.ok) {
-      setMessage(processData.error || "Invoice processing failed.")
-      setIsUploading(false)
-      return
-    }
-
-    setMessage("Invoice uploaded and processed successfully.")
-    setIsUploading(false)
   }
 
   return (
@@ -67,6 +70,7 @@ export default function UploadPage() {
         <input
           type="file"
           accept=".pdf"
+          aria-label="Invoice PDF"
           onChange={(event) =>
             setFile(event.target.files?.[0] || null)
           }

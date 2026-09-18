@@ -1,5 +1,7 @@
 import { authorizeApiRequest } from "../../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../../lib/api-response.ts"
 import { prisma } from "../../../../lib/prisma.ts"
+import { ExceptionStatus } from "@prisma/client"
 
 export async function PATCH(
   request: Request,
@@ -13,15 +15,11 @@ export async function PATCH(
     const body = await request.json()
     const { status } = body
 
-    if (!status) {
-      return Response.json(
-        {
-          error: "status is required",
-        },
-        {
-          status: 400,
-        }
-      )
+    if (
+      typeof status !== "string" ||
+      !Object.values(ExceptionStatus).includes(status as ExceptionStatus)
+    ) {
+      return apiError(400, "BAD_REQUEST", "A valid status is required")
     }
 
     const existingException = await prisma.exception.findFirst({
@@ -32,10 +30,7 @@ export async function PATCH(
     })
 
     if (!existingException) {
-      return Response.json(
-        { error: "Exception not found" },
-        { status: 404 },
-      )
+      return apiError(404, "NOT_FOUND", "Exception not found")
     }
 
     const exception = await prisma.exception.update({
@@ -46,7 +41,7 @@ export async function PATCH(
         },
       },
       data: {
-        status,
+        status: status as ExceptionStatus,
       },
     })
 
@@ -55,16 +50,7 @@ export async function PATCH(
       exception,
     })
   } catch (error) {
-    console.error("Exception update failed:", error)
-
-    return Response.json(
-      {
-        error: "Exception update failed",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      {
-        status: 500,
-      }
-    )
+    logServerError("Exception update", error)
+    return apiError(500, "INTERNAL_ERROR", "Exception update failed")
   }
 }

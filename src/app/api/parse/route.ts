@@ -1,4 +1,5 @@
 import { authorizeApiRequest } from "../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../lib/api-response.ts"
 
 export async function POST(request: Request) {
   const authorization = await authorizeApiRequest("invoice.process")
@@ -10,15 +11,8 @@ export async function POST(request: Request) {
 
     const { text } = body
 
-    if (!text) {
-      return Response.json(
-        {
-          error: "text required"
-        },
-        {
-          status: 400
-        }
-      )
+    if (typeof text !== "string" || !text.trim()) {
+      return apiError(400, "BAD_REQUEST", "text is required")
     }
 
     const invoiceNumber =
@@ -61,15 +55,7 @@ export async function POST(request: Request) {
   }
   catch (error) {
 
-    console.error(error)
-
-    return Response.json(
-      {
-        error: "Parsing failed"
-      },
-      {
-        status: 500
-      }
-    )
+    logServerError("Invoice parsing", error)
+    return apiError(500, "INTERNAL_ERROR", "Parsing failed")
   }
 }

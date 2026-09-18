@@ -1,5 +1,6 @@
 import { isSystemRoleKey } from "../../../../../lib/authorization-policy.ts"
 import { authorizeApiRequest } from "../../../../../lib/auth.ts"
+import { apiError, logServerError } from "../../../../../lib/api-response.ts"
 import {
   assignMembershipRole,
   LastAdministratorError,
@@ -21,7 +22,7 @@ export async function PUT(
   try {
     body = await request.json()
   } catch {
-    return Response.json({ error: "A JSON body is required" }, { status: 400 })
+    return apiError(400, "BAD_REQUEST", "A JSON body is required")
   }
 
   const roleKey =
@@ -30,7 +31,7 @@ export async function PUT(
       : undefined
 
   if (typeof roleKey !== "string" || !isSystemRoleKey(roleKey)) {
-    return Response.json({ error: "A valid roleKey is required" }, { status: 400 })
+    return apiError(400, "BAD_REQUEST", "A valid roleKey is required")
   }
 
   const { id } = await context.params
@@ -49,17 +50,14 @@ export async function PUT(
     })
   } catch (error) {
     if (error instanceof MembershipNotFoundError) {
-      return Response.json({ error: error.message }, { status: 404 })
+      return apiError(404, "NOT_FOUND", error.message)
     }
 
     if (error instanceof LastAdministratorError) {
-      return Response.json({ error: error.message }, { status: 409 })
+      return apiError(409, "CONFLICT", error.message)
     }
 
-    console.error("Business role assignment failed:", error)
-    return Response.json(
-      { error: "Business role assignment failed" },
-      { status: 500 },
-    )
+    logServerError("Business role assignment", error)
+    return apiError(500, "INTERNAL_ERROR", "Business role assignment failed")
   }
 }
