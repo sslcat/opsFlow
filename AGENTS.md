@@ -325,3 +325,23 @@ Code should prioritize:
 - business value
 
 over cleverness.
+
+## Model Selection
+
+Preferred defaults:
+
+- GPT-5.6 Sol High:
+  - Documentation
+  - UI
+  - CRUD
+  - Tests
+  - Deployment
+  - Reviews
+
+- GPT-6 Astra Medium:
+  - AI
+  - Architecture
+  - Multi-step refactoring
+  - Extraction Engine
+
+Escalate to GPT-6 Astra High only for unusually difficult reasoning or debugging.
