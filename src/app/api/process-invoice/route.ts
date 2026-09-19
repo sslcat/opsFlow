@@ -1,11 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { authorizeApiRequest } from "../../../lib/auth.ts"
 import { apiError, logServerError } from "../../../lib/api-response.ts"
-import {
-  extractPdfText,
-  isCompleteParsedInvoice,
-  parseInvoice,
-} from "../../../lib/invoice-extraction.ts"
+import { extractInvoiceDocument, toParsedInvoice } from "../../../lib/extraction/engine.ts"
 import { createInvoiceWithMatching } from "../../../lib/invoice-processing.ts"
 import { prisma } from "../../../lib/prisma.ts"
 import { runSerializableTransaction } from "../../../lib/serializable-transaction.ts"
@@ -67,28 +63,31 @@ export async function POST(request: Request) {
     }
 
     const fileBuffer = await readUpload(document.storageKey)
-    const parsed = parseInvoice(await extractPdfText(fileBuffer))
-
-    if (!isCompleteParsedInvoice(parsed)) {
-      await prisma.document.update({
-        where: { id_organizationId: { id: document.id, organizationId } },
-        data: { status: "FAILED" },
-      })
-
-      return apiError(
-        400,
-        "BAD_REQUEST",
-        "Could not extract all required invoice fields",
-      )
-    }
+    const extraction = await extractInvoiceDocument({
+      document: fileBuffer,
+      metadata: { documentId: document.id, fileName: document.fileName },
+    })
+    const parsed = extraction.invoice ? toParsedInvoice(extraction.invoice) : null
 
     const result = await runSerializableTransaction(async (transaction) => {
+      await transaction.extractionRun.create({
+        data: { organizationId, documentId: document.id,
+          result: JSON.parse(JSON.stringify(extraction)) as Prisma.InputJsonValue },
+      })
       const alreadyCreated = await transaction.invoice.findFirst({
         where: { organizationId, sourceDocumentId: document.id },
       })
 
       if (alreadyCreated) {
         return { invoice: alreadyCreated, created: false }
+      }
+
+      if (!parsed || extraction.errors.length) {
+        await transaction.document.update({
+          where: { id_organizationId: { id: document.id, organizationId } },
+          data: { status: "FAILED" },
+        })
+        return { invoice: null, created: false }
       }
 
       const invoice = await createInvoiceWithMatching(transaction, {
@@ -100,6 +99,7 @@ export async function POST(request: Request) {
         itemCode: parsed.itemCode,
         quantity: parsed.quantity,
         unitPrice: parsed.unitPrice,
+        invoiceDate: extraction.invoice?.invoiceDate ? new Date(extraction.invoice.invoiceDate) : null,
       })
 
       await transaction.document.update({
@@ -110,11 +110,16 @@ export async function POST(request: Request) {
       return { invoice, created: true }
     })
 
+    if (!result.invoice) {
+      return apiError(400, "BAD_REQUEST", extraction.errors.join("; "))
+    }
+
     return Response.json({
       message: result.created ? "Invoice processed" : "Invoice already processed",
-      parsed,
+      parsed: result.created ? parsed : invoiceToParsed(result.invoice),
       invoice: result.invoice,
       idempotent: !result.created,
+      extraction,
     })
   } catch (error) {
     if (

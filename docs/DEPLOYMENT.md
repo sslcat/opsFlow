@@ -18,8 +18,7 @@ organization administrator whenever production user access is provisioned.
 - Clerk for authentication and organization identity
 - Private Vercel Blob for uploaded invoice PDFs
 
-OpenAI is planned but is not required by the current regex-based extraction
-workflow.
+The Extraction Engine uses OpenAI when configured and otherwise uses regex.
 
 ## Environment Variables
 
@@ -39,7 +38,8 @@ Required application variables:
 
 Optional variables:
 
-- `OPENAI_API_KEY`: reserved for the future AI extraction phase
+- `OPENAI_API_KEY`: enables primary AI extraction; omit or leave empty for regex only
+- `OPENAI_EXTRACTION_MODEL`: structured-output-capable model; defaults to `gpt-4o-mini`
 - `TEST_DATABASE_URL` and `ALLOW_DATABASE_TESTS=true`: dedicated disposable
   database for `npm run test:db`
 
@@ -143,6 +143,23 @@ Operations:
 - Private Blob uploads are not removed by an application rollback.
 
 ## Known Production Limits
+
+- Apply `20260919120000_extraction_runs` before deploying Sprint 4 code. This is
+  an additive table migration compatible with the prior application; keep its
+  history when rolling application code back.
+- AI receives extracted invoice text through the OpenAI Responses API with
+  `store: false`. Requests have a 15-second timeout and at most one retry for
+  network failures, rate limits, or server errors. Refusals, incomplete responses,
+  malformed output, and invalid fields fall back to regex. Business-rule failures
+  do not fall back. Confidence is informational and is not a calibrated guarantee.
+- Verify a real OpenAI extraction in the target environment, then disable the key
+  and verify fallback. Check extraction audit rows and retry idempotency. Invalid
+  invoices must create a failure record without an invoice.
+- Multi-line matching and scanned/image-only PDF extraction remain unsupported.
+  Invoice text above 100,000 characters is rejected rather than truncated.
+
+API implementation reference:
+[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
 
 - Server uploads are capped at 4 MB so multipart overhead stays below Vercel's
   4.5 MB function request limit.

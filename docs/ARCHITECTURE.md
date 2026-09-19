@@ -66,7 +66,7 @@ The application combines a React-based frontend, server-side business logic, a r
 
 ## AI
 
-- OpenAI (planned)
+- OpenAI structured outputs through the provider-independent Extraction Engine
 
 ---
 
@@ -255,6 +255,24 @@ The application follows:
 ---
 
 # Future Architecture
+
+ADR-0004 is implemented in `src/lib/extraction/`. Both invoice processing and
+text parsing enter the engine. Providers receive the document, extracted text,
+and metadata; OpenAI currently uses text only. Regex is the deterministic fallback.
+All provider output passes runtime field validation and deterministic business
+validation before reaching the existing matching service. Business-rule failures
+stop processing rather than retrying through a less capable provider.
+
+Each document extraction creates a tenant-owned `ExtractionRun` containing the
+normalized result, attempts, provider/model/timestamp/confidence, warnings, and
+validation errors. Audit creation and the document/invoice state transition are
+atomic. Existing invoice idempotency and authorization rules remain enforced.
+Future providers are registered only inside the engine.
+
+The current matching model supports one line with an integer quantity. Multiple
+lines are represented by the extraction contract but rejected before invoice
+creation until the matching and storage model supports them. Scanned PDFs without
+text fail explicitly; OCR and image input are not implemented in this sprint.
 
 Future versions will introduce:
 

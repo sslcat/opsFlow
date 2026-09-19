@@ -279,6 +279,18 @@ Vendor confirmed corrected invoice.
 
 # Database Principles
 
+`ExtractionRun` stores append-only extraction results for source Documents. Each
+row has mandatory `organizationId`, `documentId`, `createdAt`, and a JSON result
+with normalized invoice fields, attempts, and errors. Each attempt records the
+provider, model, timestamp, confidence, status, and warnings. PDF/text preflight
+failures may have no provider attempt. Raw document text, API keys, and provider
+error bodies are not stored in these records.
+
+The composite Document foreign key prevents cross-tenant audit links. Audit
+queries must filter by organization. Document ownership updates cascade to audit
+rows, including the existing legacy-claim operation. The additive migration is
+`20260919120000_extraction_runs`; no existing records require backfill.
+
 The database follows these principles:
 
 - Normalize business data where practical.

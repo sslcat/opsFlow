@@ -54,6 +54,7 @@ model Organization {
   invoices            Invoice[]
   exceptions          Exception[]
   authorizationEvents AuthorizationAuditEvent[]
+  extractionRuns      ExtractionRun[]
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
 }
@@ -139,10 +140,23 @@ model Document {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   invoices       Invoice[]
+  extractionRuns ExtractionRun[]
 
   @@unique([id, organizationId])
   @@index([organizationId, createdAt])
   @@index([organizationId, storageKey])
+}
+
+model ExtractionRun {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  documentId     String
+  document       Document     @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  result         Json
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, documentId, createdAt])
 }
 
 model Order {

@@ -252,6 +252,23 @@ Exception Creation
 Repeating this request for the same Document returns the existing Invoice and
 does not create duplicate Invoices or Exceptions.
 
+Extraction now uses OpenAI structured output when `OPENAI_API_KEY` is configured,
+with deterministic regex fallback. Successful new processing preserves `parsed`,
+`invoice`, and `idempotent` and adds `extraction` (normalized invoice, provider
+attempts, warnings, and errors). Existing-invoice retries return the existing
+response without another extraction call.
+
+Unusable output, unreadable PDFs, unsupported multiple lines, or invalid business
+values return `400 BAD_REQUEST`, record the failure, and set the Document to
+`FAILED` without creating an Invoice or Exception. A failed document can be retried.
+Concurrent successful processing is never downgraded by a failed extraction.
+
+`POST /api/parse` accepts `{ "text": "invoice text" }` and uses the same engine,
+preserving successful legacy parsed-field responses. Invalid extraction now
+returns `400` instead of a partial result. This text-only preview creates no
+Document, Invoice, or persistent audit. `POST /api/extract` remains a text-only PDF
+utility. Text input is limited to 100,000 characters by the engine.
+
 ---
 
 # Future APIs

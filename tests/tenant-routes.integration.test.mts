@@ -7,6 +7,9 @@ const operations: Array<{ operation: string; args: unknown }> = []
 let authorizationStatus: "authorized" | "anonymous" | "forbidden" = "authorized"
 let roleAssignmentMode: "member" | "last-admin" = "member"
 let existingSourceInvoice = false
+let allowDocumentRead = false
+let invoiceAppearsInTransaction = false
+let extractionText = "Invoice Number: INV-1 Purchase Order: PO-1 Vendor: Vendor Bill To: Buyer ITEM-1 Widget 12 $6 $72"
 
 type FakePrisma = {
   [key: string]: unknown
@@ -47,6 +50,12 @@ const memberships = {
 }
 
 const prisma: FakePrisma = {
+  extractionRun: {
+    create: async (args: unknown) => {
+      track("extractionRun.create", args)
+      return args
+    },
+  },
   organization: {
     count: async (args: unknown) => {
       track("organization.count", args)
@@ -211,8 +220,11 @@ const prisma: FakePrisma = {
       return args
     },
   },
-  $transaction: async (operation: (client: FakePrisma) => unknown) =>
-    operation(prisma),
+  $transaction: async (operation: (client: FakePrisma) => unknown) => {
+    const previous = existingSourceInvoice
+    if (invoiceAppearsInTransaction) existingSourceInvoice = true
+    try { return await operation(prisma) } finally { existingSourceInvoice = previous }
+  },
 }
 
 async function authorizeApiRequest() {
@@ -259,6 +271,7 @@ mock.module(new URL("../src/lib/uploads.ts", import.meta.url).href, {
     },
     readUpload: async (storageKey: string) => {
       uploadCalls.push(`read:${storageKey}`)
+      if (allowDocumentRead) return Buffer.from("%PDF-1.4")
       throw new Error("An unexpected document must not be read")
     },
     deleteUpload: async (storageKey: string) => {
@@ -275,6 +288,16 @@ mock.module("node:fs/promises", {
     writeFile: async (filePath: string) => {
       uploadCalls.push(`write:${filePath}`)
     },
+  },
+})
+
+const engine = await import("../src/lib/extraction/engine.ts")
+const { regexProvider } = await import("../src/lib/extraction/regex-provider.ts")
+mock.module(new URL("../src/lib/extraction/engine.ts", import.meta.url).href, {
+  namedExports: {
+    ...engine,
+    extractInvoiceDocument: async (input: { document: Buffer; metadata: { documentId: string; fileName: string } }) =>
+      engine.extractInvoice({ ...input, text: extractionText }, [regexProvider]),
   },
 })
 
@@ -513,3 +536,60 @@ function jsonRequest(path: string, body: object, method = "POST") {
     body: JSON.stringify(body),
   })
 }
+
+test("document extraction persists tenant audit and runs existing mismatch checks", async () => {
+  authorizationStatus = "authorized"
+  allowDocumentRead = true
+  operations.length = 0
+  try {
+    const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a" }))
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.parsed.quantity, 12)
+    assert.equal(body.extraction.attempts[0].provider, "regex")
+    assert.equal(operations.filter(op => op.operation === "invoice.create").length, 1)
+    assert.equal(operations.filter(op => op.operation === "exception.create").length, 2)
+    const audit = operations.find(op => op.operation === "extractionRun.create")
+    assert.match(JSON.stringify(audit?.args), /organization-a/)
+    assert.match(JSON.stringify(audit?.args), /document-a/)
+    assert.match(JSON.stringify(operations.find(op => op.operation === "document.update")?.args), /PARSED/)
+  } finally { allowDocumentRead = false }
+})
+
+test("extraction failure is audited and marks document failed without invoice or exceptions", async () => {
+  authorizationStatus = "authorized"
+  allowDocumentRead = true
+  const original = extractionText
+  try {
+    for (const text of ["invalid invoice", original + " ITEM-2 Other 1 $5 $5"]) {
+      extractionText = text
+      operations.length = 0
+      const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a" }))
+      assert.equal(response.status, 400)
+      assert.ok(operations.some(op => op.operation === "extractionRun.create"))
+      assert.equal(operations.some(op => op.operation === "invoice.create" || op.operation === "exception.create"), false)
+      assert.match(JSON.stringify(operations.find(op => op.operation === "document.update")?.args), /FAILED/)
+    }
+  } finally { allowDocumentRead = false; extractionText = original }
+})
+
+test("a concurrent invoice success cannot be downgraded by failed extraction", async () => {
+  authorizationStatus = "authorized"
+  allowDocumentRead = true
+  invoiceAppearsInTransaction = true
+  const original = extractionText
+  extractionText = "invalid invoice"
+  operations.length = 0
+  try {
+    const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a" }))
+    const body = await response.json()
+    assert.equal(response.status, 200)
+    assert.equal(body.idempotent, true)
+    assert.equal(body.parsed.invoiceNumber, "INV-1")
+    assert.equal(operations.some(op => op.operation === "document.update" || op.operation === "invoice.create"), false)
+  } finally {
+    allowDocumentRead = false
+    invoiceAppearsInTransaction = false
+    extractionText = original
+  }
+})

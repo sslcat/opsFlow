@@ -49,6 +49,9 @@ before(async () => {
 after(async () => {
   if (!prisma) return
 
+  await prisma.extractionRun.deleteMany({
+    where: { organizationId: { in: [organizationAId, organizationBId] } },
+  })
   await prisma.document.deleteMany({
     where: { organizationId: { in: [organizationAId, organizationBId] } },
   })
@@ -56,6 +59,20 @@ after(async () => {
     where: { id: { in: [organizationAId, organizationBId] } },
   })
   await prisma.$disconnect()
+})
+
+test("extraction audits enforce document tenant ownership", {
+  skip: shouldRun ? false : "Set TEST_DATABASE_URL and ALLOW_DATABASE_TESTS=true",
+}, async () => {
+  assert.ok(prisma)
+  await assert.rejects(prisma.extractionRun.create({
+    data: { organizationId: organizationAId, documentId: documentBId, result: {} },
+  }))
+  await prisma.extractionRun.create({
+    data: { organizationId: organizationAId, documentId: documentAId, result: { attempts: [] } },
+  })
+  const otherTenant = await prisma.extractionRun.findMany({ where: { organizationId: organizationBId } })
+  assert.equal(otherTenant.length, 0)
 })
 
 test(
