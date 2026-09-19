@@ -18,6 +18,13 @@ export async function createInvoiceWithMatching(
   transaction: Prisma.TransactionClient,
   input: InvoiceInput,
 ) {
+  return (await createInvoiceWithMatchingResult(transaction, input)).invoice
+}
+
+export async function createInvoiceWithMatchingResult(
+  transaction: Prisma.TransactionClient,
+  input: InvoiceInput,
+) {
   const invoice = await transaction.invoice.create({
     data: input,
   })
@@ -65,5 +72,17 @@ export async function createInvoiceWithMatching(
     await transaction.exception.create({ data: exception })
   }
 
-  return invoice
+  return {
+    invoice,
+    purchaseOrder: order ? {
+      poNumber: order.poNumber,
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+    } : null,
+    matching: {
+      status: exceptions.length ? "EXCEPTIONS" as const : "MATCHED" as const,
+      checks: order ? ["purchaseOrderExists", "quantity", "unitPrice"] : ["purchaseOrderExists"],
+      exceptions: exceptions.map(({ type, description }) => ({ type, description: description ?? null })),
+    },
+  }
 }

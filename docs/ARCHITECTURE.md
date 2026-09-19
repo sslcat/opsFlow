@@ -256,6 +256,20 @@ The application follows:
 
 # Future Architecture
 
+ADR-0005 is implemented in `src/lib/insights/`, separately from extraction.
+The invoice matching service exposes the PO snapshot and deterministic outcomes
+used to create exceptions while preserving its existing invoice-only entry point.
+After the transaction commits, the processing route passes those facts and the
+validated normalized invoice to a provider-independent insights service.
+
+OpenAI returns structured advisory text, validated at runtime before display.
+The service has no database or workflow mutation capability. Provider failures
+return an unavailable result without affecting processing. It runs once for a
+newly processed invoice, outside transaction retries; existing invoices skip it.
+No insights history or new tables are introduced. The upload page renders plain
+text advice with an advisory label and self-assessed explanation confidence.
+Matching still checks only PO existence, quantity, and unit price.
+
 ADR-0004 is implemented in `src/lib/extraction/`. Both invoice processing and
 text parsing enter the engine. Providers receive the document, extracted text,
 and metadata; OpenAI currently uses text only. Regex is the deterministic fallback.

@@ -2,7 +2,8 @@ import { Prisma } from "@prisma/client"
 import { authorizeApiRequest } from "../../../lib/auth.ts"
 import { apiError, logServerError } from "../../../lib/api-response.ts"
 import { extractInvoiceDocument, toParsedInvoice } from "../../../lib/extraction/engine.ts"
-import { createInvoiceWithMatching } from "../../../lib/invoice-processing.ts"
+import { createInvoiceWithMatchingResult } from "../../../lib/invoice-processing.ts"
+import { generateInvoiceInsights } from "../../../lib/insights/service.ts"
 import { prisma } from "../../../lib/prisma.ts"
 import { runSerializableTransaction } from "../../../lib/serializable-transaction.ts"
 import { readUpload } from "../../../lib/uploads.ts"
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
         parsed: invoiceToParsed(existingInvoice),
         invoice: existingInvoice,
         idempotent: true,
+        insights: { status: "NOT_GENERATED", insights: null },
       })
     }
 
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
       })
 
       if (alreadyCreated) {
-        return { invoice: alreadyCreated, created: false }
+        return { invoice: alreadyCreated, created: false, matchingResult: null }
       }
 
       if (!parsed || extraction.errors.length) {
@@ -87,10 +89,10 @@ export async function POST(request: Request) {
           where: { id_organizationId: { id: document.id, organizationId } },
           data: { status: "FAILED" },
         })
-        return { invoice: null, created: false }
+        return { invoice: null, created: false, matchingResult: null }
       }
 
-      const invoice = await createInvoiceWithMatching(transaction, {
+      const matchingResult = await createInvoiceWithMatchingResult(transaction, {
         organizationId,
         sourceDocumentId: document.id,
         invoiceNumber: parsed.invoiceNumber,
@@ -107,12 +109,21 @@ export async function POST(request: Request) {
         data: { status: "PARSED" },
       })
 
-      return { invoice, created: true }
+      return { invoice: matchingResult.invoice, created: true, matchingResult }
     })
 
     if (!result.invoice) {
       return apiError(400, "BAD_REQUEST", extraction.errors.join("; "))
     }
+
+    const insights = result.created && result.matchingResult && extraction.invoice
+      ? await generateInvoiceInsights({
+        invoice: extraction.invoice,
+        purchaseOrder: result.matchingResult.purchaseOrder,
+        matching: result.matchingResult.matching,
+        validation: { status: "PASSED", errors: extraction.errors, warnings: extraction.invoice.warnings },
+      })
+      : { status: "NOT_GENERATED" as const, insights: null }
 
     return Response.json({
       message: result.created ? "Invoice processed" : "Invoice already processed",
@@ -120,6 +131,7 @@ export async function POST(request: Request) {
       invoice: result.invoice,
       idempotent: !result.created,
       extraction,
+      insights,
     })
   } catch (error) {
     if (
@@ -137,6 +149,7 @@ export async function POST(request: Request) {
           parsed: invoiceToParsed(existingInvoice),
           invoice: existingInvoice,
           idempotent: true,
+          insights: { status: "NOT_GENERATED", insights: null },
         })
       }
     }

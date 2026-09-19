@@ -38,8 +38,11 @@ Required application variables:
 
 Optional variables:
 
-- `OPENAI_API_KEY`: enables primary AI extraction; omit or leave empty for regex only
+- `OPENAI_API_KEY`: enables primary AI extraction and advisory insights; omit or
+  leave empty for regex extraction and unavailable insights
 - `OPENAI_EXTRACTION_MODEL`: structured-output-capable model; defaults to `gpt-4o-mini`
+- `OPENAI_INSIGHTS_MODEL`: independently configurable structured-output-capable
+  model for explanations; defaults to `gpt-4o-mini`
 - `TEST_DATABASE_URL` and `ALLOW_DATABASE_TESTS=true`: dedicated disposable
   database for `npm run test:db`
 
@@ -126,6 +129,11 @@ Business workflow:
   Exception is created.
 - Confirm matching invoices and mismatch Exceptions appear on their pages.
 - Resolve an Exception and verify dashboard counts.
+- With OpenAI configured, verify the upload page shows a summary, observations,
+  next actions, and advisory confidence for a match and a mismatch. Check the
+  advice against actual PO values. Disable the key or simulate provider failure
+  and confirm processing still succeeds with an unavailable-insights message.
+- Retry the Document and confirm `NOT_GENERATED` insights and no duplicate writes.
 
 Operations:
 
@@ -143,6 +151,15 @@ Operations:
 - Private Blob uploads are not removed by an application rollback.
 
 ## Known Production Limits
+
+- Sprint 5 adds no migration. Insights send the normalized invoice, minimal PO
+  snapshot, matching outcome, and validation warnings using `store: false`.
+  Raw PDFs, storage keys, and internal tenant/user IDs are not sent by this service.
+  A single 8-second request with no retry bounds added latency. Refused,
+  incomplete, invalid, or failed responses return unavailable advice. Advice is
+  not persisted and cannot be retrieved after navigating away or retrying.
+  Model output may be inaccurate; confidence is not calibrated. Deterministic
+  exception handling remains authoritative.
 
 - Apply `20260919120000_extraction_runs` before deploying Sprint 4 code. This is
   an additive table migration compatible with the prior application; keep its

@@ -263,6 +263,32 @@ values return `400 BAD_REQUEST`, record the failure, and set the Document to
 `FAILED` without creating an Invoice or Exception. A failed document can be retried.
 Concurrent successful processing is never downgraded by a failed extraction.
 
+Successful processing adds `insights` without changing the existing fields:
+
+```json
+{
+  "status": "AVAILABLE",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "insights": {
+    "summary": "The invoice quantity differs from the purchase order.",
+    "observations": ["The invoice lists 12 units; the PO lists 10."],
+    "recommendations": ["Verify the invoiced quantity with procurement."],
+    "confidence": 0.9
+  }
+}
+```
+
+The advisory service runs only after a newly created invoice commits. It receives
+the normalized invoice, the tenant-scoped PO quantity/price snapshot, the actual
+matching result, and validation warnings. It cannot approve, resolve, or update
+business records. Missing configuration or provider failure returns
+`{ "status": "UNAVAILABLE", "insights": null }` with the successful processing
+response. Already-processed invoices (including concurrent retries) return
+`{ "status": "NOT_GENERATED", "insights": null }` without an insights call.
+Insights are not persisted or regenerated on retry. Failed validation never
+invokes the service. The upload page displays the advice and its availability.
+
 `POST /api/parse` accepts `{ "text": "invoice text" }` and uses the same engine,
 preserving successful legacy parsed-field responses. Invalid extraction now
 returns `400` instead of a partial result. This text-only preview creates no

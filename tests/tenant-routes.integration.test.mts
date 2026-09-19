@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { mock, test } from "node:test"
+import type { InsightsInput } from "../src/lib/insights/types.ts"
 
 const ORGANIZATION_A = "organization-a"
 const ORGANIZATION_B = "organization-b"
@@ -9,6 +10,10 @@ let roleAssignmentMode: "member" | "last-admin" = "member"
 let existingSourceInvoice = false
 let allowDocumentRead = false
 let invoiceAppearsInTransaction = false
+let transactionActive = false
+let insightsFail = false
+let orderResult: { poNumber: string; quantity: number; unitPrice: number } | null = { poNumber: "PO-1", quantity: 10, unitPrice: 5 }
+const insightsInputs: InsightsInput[] = []
 let extractionText = "Invoice Number: INV-1 Purchase Order: PO-1 Vendor: Vendor Bill To: Buyer ITEM-1 Widget 12 $6 $72"
 
 type FakePrisma = {
@@ -109,7 +114,7 @@ const prisma: FakePrisma = {
     },
     findFirst: async (args: unknown) => {
       track("order.findFirst", args)
-      return { quantity: 10, unitPrice: 5 }
+      return orderResult
     },
   },
   invoice: {
@@ -223,7 +228,8 @@ const prisma: FakePrisma = {
   $transaction: async (operation: (client: FakePrisma) => unknown) => {
     const previous = existingSourceInvoice
     if (invoiceAppearsInTransaction) existingSourceInvoice = true
-    try { return await operation(prisma) } finally { existingSourceInvoice = previous }
+    transactionActive = true
+    try { return await operation(prisma) } finally { existingSourceInvoice = previous; transactionActive = false }
   },
 }
 
@@ -292,6 +298,19 @@ mock.module("node:fs/promises", {
 })
 
 const engine = await import("../src/lib/extraction/engine.ts")
+const insightsService = await import("../src/lib/insights/service.ts")
+mock.module(new URL("../src/lib/insights/service.ts", import.meta.url).href, {
+  namedExports: {
+    generateInvoiceInsights: (input: InsightsInput) => insightsService.generateInvoiceInsights(input, {
+      name: "test", model: "test-model", generate: async (snapshot: InsightsInput) => {
+        assert.equal(transactionActive, false)
+        insightsInputs.push(snapshot)
+        if (insightsFail) throw new Error("private AI error")
+        return { summary: "Review the processing results.", observations: ["Review detected exceptions."], recommendations: ["Verify invoice details."], confidence: 0.8 }
+      },
+    }),
+  },
+})
 const { regexProvider } = await import("../src/lib/extraction/regex-provider.ts")
 mock.module(new URL("../src/lib/extraction/engine.ts", import.meta.url).href, {
   namedExports: {
@@ -344,6 +363,7 @@ const protectedHandlers: Array<() => Promise<Response>> = [
 ]
 
 test("every API handler rejects anonymous and missing-permission requests before I/O", async () => {
+  insightsInputs.length = 0
   for (const status of ["anonymous", "forbidden"] as const) {
     authorizationStatus = status
     operations.length = 0
@@ -357,6 +377,7 @@ test("every API handler rejects anonymous and missing-permission requests before
 
     assert.equal(operations.length, 0)
     assert.equal(uploadCalls.length, 0)
+    assert.equal(insightsInputs.length, 0)
   }
 })
 
@@ -396,6 +417,7 @@ test("collection reads and mutations always use the active organization", async 
 })
 
 test("cross-tenant resource identifiers return 404 before storage or mutation", async () => {
+  insightsInputs.length = 0
   authorizationStatus = "authorized"
   operations.length = 0
   uploadCalls.length = 0
@@ -414,6 +436,7 @@ test("cross-tenant resource identifiers return 404 before storage or mutation", 
   assert.equal(exceptionResponse.status, 404)
   assert.equal(extractResponse.status, 404)
   assert.equal(processResponse.status, 404)
+  assert.equal(insightsInputs.length, 0)
   assert.equal(
     operations.some(({ operation }) => operation === "exception.update"),
     false,
@@ -491,6 +514,7 @@ test("upload validation rejects disguised and oversized files before storage", a
 })
 
 test("reprocessing a linked document returns its invoice without reading storage", async () => {
+  insightsInputs.length = 0
   authorizationStatus = "authorized"
   existingSourceInvoice = true
   uploadCalls.length = 0
@@ -503,6 +527,8 @@ test("reprocessing a linked document returns its invoice without reading storage
   assert.equal(response.status, 200)
   assert.equal(body.idempotent, true)
   assert.equal(body.invoice.id, "invoice-a")
+  assert.equal(body.insights.status, "NOT_GENERATED")
+  assert.equal(insightsInputs.length, 0)
   assert.equal(uploadCalls.length, 0)
   existingSourceInvoice = false
 })
@@ -538,6 +564,7 @@ function jsonRequest(path: string, body: object, method = "POST") {
 }
 
 test("document extraction persists tenant audit and runs existing mismatch checks", async () => {
+  insightsInputs.length = 0
   authorizationStatus = "authorized"
   allowDocumentRead = true
   operations.length = 0
@@ -547,6 +574,13 @@ test("document extraction persists tenant audit and runs existing mismatch check
     const body = await response.json()
     assert.equal(body.parsed.quantity, 12)
     assert.equal(body.extraction.attempts[0].provider, "regex")
+    assert.equal(body.insights.status, "AVAILABLE")
+    assert.equal(insightsInputs.length, 1)
+    assert.equal(insightsInputs[0].matching.status, "EXCEPTIONS")
+    assert.deepEqual(insightsInputs[0].matching.exceptions.map(e => e.type), ["QUANTITY_MISMATCH", "PRICE_MISMATCH"])
+    assert.deepEqual(insightsInputs[0].purchaseOrder, orderResult)
+    assert.equal(insightsInputs[0].validation.status, "PASSED")
+    assert.doesNotMatch(JSON.stringify(insightsInputs[0]), /organization-a|storageKey|document-a/)
     assert.equal(operations.filter(op => op.operation === "invoice.create").length, 1)
     assert.equal(operations.filter(op => op.operation === "exception.create").length, 2)
     const audit = operations.find(op => op.operation === "extractionRun.create")
@@ -557,6 +591,7 @@ test("document extraction persists tenant audit and runs existing mismatch check
 })
 
 test("extraction failure is audited and marks document failed without invoice or exceptions", async () => {
+  insightsInputs.length = 0
   authorizationStatus = "authorized"
   allowDocumentRead = true
   const original = extractionText
@@ -571,6 +606,7 @@ test("extraction failure is audited and marks document failed without invoice or
       operations.length = 0
       const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a" }))
       assert.equal(response.status, 400)
+      assert.equal(insightsInputs.length, 0)
       assert.ok(operations.some(op => op.operation === "extractionRun.create"))
       assert.equal(operations.some(op => op.operation === "invoice.create" || op.operation === "exception.create"), false)
       assert.match(JSON.stringify(operations.find(op => op.operation === "document.update")?.args), /FAILED/)
@@ -579,6 +615,7 @@ test("extraction failure is audited and marks document failed without invoice or
 })
 
 test("a concurrent invoice success cannot be downgraded by failed extraction", async () => {
+  insightsInputs.length = 0
   authorizationStatus = "authorized"
   allowDocumentRead = true
   invoiceAppearsInTransaction = true
@@ -590,6 +627,8 @@ test("a concurrent invoice success cannot be downgraded by failed extraction", a
     const body = await response.json()
     assert.equal(response.status, 200)
     assert.equal(body.idempotent, true)
+    assert.equal(body.insights.status, "NOT_GENERATED")
+    assert.equal(insightsInputs.length, 0)
     assert.equal(body.parsed.invoiceNumber, "INV-1")
     assert.equal(operations.some(op => op.operation === "document.update" || op.operation === "invoice.create"), false)
   } finally {
@@ -597,4 +636,32 @@ test("a concurrent invoice success cannot be downgraded by failed extraction", a
     invoiceAppearsInTransaction = false
     extractionText = original
   }
+})
+
+test("insights sees matched and missing-PO outcomes; AI failure preserves committed invoices and exceptions", async () => {
+  authorizationStatus = "authorized"
+  allowDocumentRead = true
+  const originalOrder = orderResult
+  try {
+    for (const order of [{ poNumber: "PO-1", quantity: 12, unitPrice: 6 }, null]) {
+      for (const fail of [false, true]) {
+        orderResult = order
+        insightsFail = fail
+        insightsInputs.length = 0
+        operations.length = 0
+        const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a", organizationId: ORGANIZATION_B }))
+        const body = await response.json()
+        assert.equal(response.status, 200)
+        assert.equal(body.insights.status, fail ? "UNAVAILABLE" : "AVAILABLE")
+        assert.equal(body.invoice.organizationId, ORGANIZATION_A)
+        assert.equal(insightsInputs[0].matching.status, order ? "MATCHED" : "EXCEPTIONS")
+        assert.deepEqual(insightsInputs[0].matching.exceptions.map(e => e.type), order ? [] : ["MISSING_DOCUMENT"])
+        assert.equal(operations.filter(op => op.operation === "invoice.create").length, 1)
+        assert.equal(operations.filter(op => op.operation === "exception.create").length, order ? 0 : 1)
+        assert.match(JSON.stringify(operations.find(op => op.operation === "document.update")?.args), /PARSED/)
+        assert.doesNotMatch(JSON.stringify(body), /private AI error/)
+        assert.equal(operations.at(-1)?.operation, "document.update")
+      }
+    }
+  } finally { allowDocumentRead = false; orderResult = originalOrder; insightsFail = false }
 })

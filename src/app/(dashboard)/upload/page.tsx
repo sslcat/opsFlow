@@ -1,13 +1,17 @@
 "use client"
 
 import { useState } from "react"
+import type { InsightsResult } from "../../../lib/insights/types"
+import { InvoiceInsightsPanel } from "./invoice-insights"
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [message, setMessage] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [insights, setInsights] = useState<InsightsResult | null>(null)
 
   async function handleUpload() {
+    setInsights(null)
     if (!file) {
       setMessage("Please choose a PDF file first.")
       return
@@ -53,6 +57,7 @@ export default function UploadPage() {
       }
 
       setMessage("Invoice uploaded and processed successfully.")
+      setInsights(processData.insights ?? { status: "UNAVAILABLE", insights: null })
     } catch {
       setMessage("The upload could not be completed. Please try again.")
     } finally {
@@ -71,9 +76,12 @@ export default function UploadPage() {
           type="file"
           accept=".pdf"
           aria-label="Invoice PDF"
-          onChange={(event) =>
+          disabled={isUploading}
+          onChange={(event) => {
             setFile(event.target.files?.[0] || null)
-          }
+            setInsights(null)
+            setMessage("")
+          }}
           className="mb-4"
         />
 
@@ -93,6 +101,7 @@ export default function UploadPage() {
           </p>
         )}
       </div>
+      {insights && <InvoiceInsightsPanel result={insights} />}
     </div>
   )
 }
