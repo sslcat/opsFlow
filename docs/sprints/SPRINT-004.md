@@ -107,9 +107,23 @@ Deployment
 
 ## Local verification
 
-- `npm test`: 26 passed; 3 disposable-database tests skipped (not configured).
+- `npm test`: 29 passed; 3 disposable-database tests skipped (not configured).
 - `npm run typecheck`, `npm run lint`, and `npm run build`: passed.
 - `prisma validate`: passed using placeholder database URLs (no connection).
 - No migration was applied. `OPENAI_API_KEY`, `DIRECT_URL`, and
   `TEST_DATABASE_URL` are not configured locally. OpenAI behavior is covered with
   mocked HTTP responses; a live successful extraction is not yet verified.
+
+## PR review fixes
+
+- Regex reads complete numeric tokens in both known layouts, supports correctly
+  grouped thousands separators, and rejects malformed tokens. Fractional quantities
+  reach the existing integer business rule and fail rather than being truncated.
+- Repeated quantity/price labels, incomplete labelled lines, and mixed table/label
+  layouts fail extraction rather than silently dropping a line.
+- A supplied invoice total must reconcile even when tax is absent. With null tax,
+  the total must equal the subtotal (or line sum when subtotal is absent), using
+  the existing rounding tolerance. Tax remains null; unexplained differences fail
+  business validation without regex fallback. An absent total remains optional.
+- Added engine regressions and route checks for failed-document auditing without
+  invoice or exception creation. Architecture, API shapes, and schema are unchanged.

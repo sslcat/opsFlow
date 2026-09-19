@@ -69,6 +69,8 @@ export function validateInvoiceBusinessRules(invoice: NormalizedInvoice): string
   const sum = invoice.lineItems.reduce((total, item) => total + item.quantity * item.unitPrice, 0)
   if (!Number.isFinite(sum) || !Number.isSafeInteger(Math.round(sum * 100))) errors.push("Invoice amount exceeds supported range")
   if (invoice.subtotal !== null && Math.abs(invoice.subtotal - sum) > 0.011) errors.push("Subtotal does not match invoice lines")
-  if (invoice.total !== null && invoice.tax !== null && Math.abs(invoice.total - (invoice.subtotal ?? sum) - invoice.tax) > 0.011) errors.push("Invoice total does not match subtotal and tax")
+  // Missing tax cannot explain a difference: accept only an unadjusted total.
+  // Keep tax null in the extracted result rather than inventing a tax amount.
+  if (invoice.total !== null && Math.abs(invoice.total - (invoice.subtotal ?? sum) - (invoice.tax ?? 0)) > 0.011) errors.push("Invoice total does not match subtotal and tax")
   return errors
 }

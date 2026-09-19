@@ -76,6 +76,57 @@ test("regex preserves legacy format and rejects multiple known-layout lines", as
   assert.ok(partial.errors.length)
 })
 
+test("regex parses complete numeric tokens in both supported layouts", async () => {
+  const header = "Invoice Number: INV-1 Purchase Order: PO-1 Vendor: Acme Bill To: Buyer "
+  for (const suffix of ["Quantity: 1,000 Unit Price: $5", "ITEM-1 Widget 1,000 $5 $5,000"]) {
+    const result = await extractInvoice({ ...input, text: header + suffix }, [regexProvider])
+    assert.deepEqual(result.errors, [])
+    assert.equal(result.invoice?.lineItems[0].quantity, 1000)
+  }
+  for (const quantity of ["1.5", "1,00", "1foo", "1e3", "-1", "0", "2147483648"]) {
+    for (const suffix of [`Quantity: ${quantity} Unit Price: $5`, `ITEM-1 Widget ${quantity} $5 $5`]) {
+      const result = await extractInvoice({ ...input, text: header + suffix }, [regexProvider])
+      assert.ok(result.errors.length, suffix)
+      assert.equal(result.attempts[0].status, "FAILED")
+    }
+  }
+  for (const price of ["5foo", "5,00", "5.00.1"]) {
+    const result = await extractInvoice({ ...input, text: header + `Quantity: 10 Unit Price: $${price}` }, [regexProvider])
+    assert.ok(result.errors.length, price)
+  }
+})
+
+test("regex rejects repeated, incomplete, and mixed labelled lines", async () => {
+  const header = "Invoice Number: INV-1 Purchase Order: PO-1 Vendor: Acme Bill To: Buyer "
+  for (const suffix of [
+    "Quantity: 10 Unit Price: $5 Quantity: 20 Unit Price: $7",
+    "Quantity: 10 Unit Price: $5 Quantity:",
+    "Quantity: 10 Unit Price: $5 Unit Price: $7",
+    "Quantity: 10", "Unit Price: $5",
+    "ITEM-1 Widget 10 $5 $50 Quantity: 20 Unit Price: $7",
+  ]) {
+    const result = await extractInvoice({ ...input, text: header + suffix }, [regexProvider])
+    assert.ok(result.errors.length, suffix)
+    assert.equal(result.invoice, null)
+  }
+})
+
+test("totals reconcile when tax or subtotal is absent without guessing tax", async () => {
+  for (const subtotal of [50, null]) {
+    for (const total of [1, 55]) {
+      const result = await extractInvoice(input, [provider({ ...invoice, subtotal, tax: null, total }), regexProvider])
+      assert.match(result.errors.join(), /Invoice total/)
+      assert.equal(result.attempts.length, 1)
+      assert.equal(result.attempts[0].status, "FAILED")
+    }
+    for (const amounts of [{ tax: null, total: 50 }, { tax: 0, total: 50 }, { tax: 5, total: 55 }, { tax: null, total: null }]) {
+      const result = await extractInvoice(input, [provider({ ...invoice, subtotal, ...amounts })])
+      assert.deepEqual(result.errors, [])
+      assert.equal(result.invoice?.tax, amounts.tax)
+    }
+  }
+})
+
 test("runtime validation rejects impossible dates, nonfinite numbers, and invalid confidence", () => {
   for (const changes of [{ invoiceDate: "2026-02-30" }, { confidence: 2 }, { total: Infinity }, { currency: "dollars" }, { tax: "5" }, { unexpected: "provider-specific data" }]) {
     assert.equal(isNormalizedInvoice({ ...invoice, ...changes }), false)

@@ -561,7 +561,12 @@ test("extraction failure is audited and marks document failed without invoice or
   allowDocumentRead = true
   const original = extractionText
   try {
-    for (const text of ["invalid invoice", original + " ITEM-2 Other 1 $5 $5"]) {
+    const labelled = "Invoice Number: INV-1 Purchase Order: PO-1 Vendor: Vendor Quantity: "
+    for (const text of [
+      "invalid invoice", original + " ITEM-2 Other 1 $5 $5",
+      labelled + "1.5 Unit Price: $5",
+      labelled + "10 Unit Price: $5 Quantity: 20 Unit Price: $7",
+    ]) {
       extractionText = text
       operations.length = 0
       const response = await processInvoiceRoute.POST(jsonRequest("/api/process-invoice", { documentId: "document-a" }))
