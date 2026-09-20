@@ -124,3 +124,34 @@ Users receive understandable AI explanations after invoice processing.
 - Authenticated Clerk account-menu interaction, live AI calls, and live database
   workflows remain release smoke checks. The visual harness used a stand-in
   account button, not a real Clerk session. No environment keys were changed.
+
+### Workspace navigation regression fix
+
+The reported pattern (five sidebar pages showing 404 while Upload renders) was
+caused by the existing `requirePagePermission` UI behavior: missing active Clerk
+organization or business permissions triggered `notFound()`. All route files and
+links existed. Upload is a client page protected by the layout; its operations
+check permissions at the API boundary, so it did not hit the page-level 404.
+
+The five data pages now reuse the unchanged `authorizeApiRequest` decision through
+a small presentation helper. Anonymous access still redirects to sign-in. Denied
+page access renders an organization/access recovery state, before any business
+data query. The existing header includes Clerk's OrganizationSwitcher and keeps
+the requested pathname when selecting, creating, or leaving an organization.
+The approved data-page UI, backend, permission policy, business logic, and API
+response contracts are unchanged. The full UserButton remains available.
+
+Regression verification includes five new integration tests and 51 real Next.js
+production-fixture browser/HTTP checks. Every sidebar destination renders with
+authorized test data; missing-organization and denied-permission sessions render
+the access state on data pages without returning a route 404 or reading business
+data. Anonymous redirects and true unknown-route 404s remain intact. Desktop and
+tablet navigation, active links, same-path organization selection, and switching
+between test tenants pass. See `tests/browser/README.md` for repeatable checks and
+the external-service fixture boundary. Live Clerk UI/session verification remains
+a deployment smoke check; no live accounts or financial records were changed.
+
+Final gates: TypeScript, ESLint, production build, Prisma schema validation, and
+diff whitespace checks pass. `npm test`: 39 passed, 3 disposable-database tests
+skipped (not configured). Prisma validation used placeholder URLs without a
+database connection. The fix is committed locally without pushing.

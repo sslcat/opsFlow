@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { requirePagePermission } from "@/lib/auth"
+import { getWorkspacePageContext } from "@/components/workspace-page-access"
+import { WorkspaceAccessState } from "@/components/workspace-access-state"
 import { getDashboardData, getInvoicesPageData } from "@/lib/tenant-page-data"
 import {
   Badge,
@@ -12,11 +13,13 @@ import {
 } from "@/components/ui"
 
 export default async function DashboardPage() {
-  const authorization = await requirePagePermission([
+  const authorization = await getWorkspacePageContext([
     "organization.read",
     "document.read",
     "exception.read",
   ])
+  if (!authorization) return <WorkspaceAccessState />
+
   const [data, invoices] = await Promise.all([
     getDashboardData(authorization.organizationId),
     authorization.permissions.has("invoice.read")

@@ -1,9 +1,12 @@
 import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
-import { requirePagePermission } from "@/lib/auth"
+import { getWorkspacePageContext } from "@/components/workspace-page-access"
+import { WorkspaceAccessState } from "@/components/workspace-access-state"
 import { getInvoicesPageData } from "@/lib/tenant-page-data"
 
 export default async function InvoicesPage() {
-  const authorization = await requirePagePermission("invoice.read")
+  const authorization = await getWorkspacePageContext("invoice.read")
+
+  if (!authorization) return <WorkspaceAccessState />
 
   const invoices = await getInvoicesPageData(authorization.organizationId)
 

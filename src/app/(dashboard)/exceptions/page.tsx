@@ -1,10 +1,13 @@
 import { Badge, Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
-import { requirePagePermission } from "@/lib/auth"
+import { getWorkspacePageContext } from "@/components/workspace-page-access"
+import { WorkspaceAccessState } from "@/components/workspace-access-state"
 import { getExceptionsPageData } from "@/lib/tenant-page-data"
 import ResolveExceptionButton from "./resolve-exception-button"
 
 export default async function ExceptionsPage() {
-  const authorization = await requirePagePermission("exception.read")
+  const authorization = await getWorkspacePageContext("exception.read")
+
+  if (!authorization) return <WorkspaceAccessState />
 
   const exceptions = await getExceptionsPageData(authorization.organizationId)
 

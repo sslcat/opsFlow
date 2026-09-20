@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
 import { WorkspaceNavigation } from "@/components/workspace-navigation"
 import { Icon } from "@/components/ui"
+import { WorkspaceOrganizationSwitcher } from "@/components/workspace-organization-switcher"
 
 export default async function DashboardLayout({
   children,
@@ -53,12 +54,13 @@ export default async function DashboardLayout({
           </Link>
         </div>
       </aside>
-      <header className="flex min-h-20 items-center justify-between gap-4 border-b border-slate-200 bg-white/90 px-5 sm:px-8">
+      <header className="flex min-h-20 flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white/90 px-5 py-3 sm:px-8">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Icon name="shield" className="h-4 w-4" />
           <span>Accounts payable workspace</span>
         </div>
-        <div className="flex shrink-0 items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <WorkspaceOrganizationSwitcher />
           <span className="hidden text-xs text-slate-500 lg:block">
             Your account
           </span>

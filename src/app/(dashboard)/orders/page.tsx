@@ -1,9 +1,12 @@
 import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
-import { requirePagePermission } from "@/lib/auth"
+import { getWorkspacePageContext } from "@/components/workspace-page-access"
+import { WorkspaceAccessState } from "@/components/workspace-access-state"
 import { getOrdersPageData } from "@/lib/tenant-page-data"
 
 export default async function OrdersPage() {
-  const authorization = await requirePagePermission("order.read")
+  const authorization = await getWorkspacePageContext("order.read")
+
+  if (!authorization) return <WorkspaceAccessState />
 
   const orders = await getOrdersPageData(authorization.organizationId)
 
