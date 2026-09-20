@@ -31,6 +31,12 @@ from a second tenant. Created orders exist only in the temporary server's memory
 no production or local development database is written. Screenshots include the
 desktop/tablet dialog, error, and success states.
 
+Error-focus checks cover native required/numeric validation, duplicate PO numbers,
+expired sessions, lost permissions, server validation/storage failures, malformed
+or mismatched success responses, and network failures. Immediate repeated failures
+verify that identical messages regain focus after each submission, even when React
+batches the pending and error updates.
+
 `upload-identity-checks.mjs` adds 16 checks against the actual upload workflow.
 The Clerk fixture publishes reactive user/organization changes without navigating
 or refreshing the server. Completed invoice, extraction, and Insights results,

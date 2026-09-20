@@ -419,6 +419,9 @@ try {
       false
     )
     await submitOrder()
+    await until(
+      `document.activeElement === document.querySelector('dialog input:invalid')`
+    )
     assert.equal(
       await evaluate(
         `document.querySelector('dialog form').getAttribute('aria-busy')`
@@ -444,6 +447,9 @@ try {
   await submitOrder()
   await until(
     `document.querySelector('dialog [role="alert"]')?.textContent.includes('permission')`
+  )
+  await until(
+    `document.activeElement === document.querySelector('dialog [role="alert"]')`
   )
   assert.equal(
     await evaluate(`document.querySelector('[name="poNumber"]').value`),
@@ -483,6 +489,9 @@ try {
   await until(
     `document.querySelector('dialog [role="alert"]')?.textContent.includes("couldn't confirm")`
   )
+  await until(
+    `document.activeElement === document.querySelector('dialog [role="alert"]')`
+  )
   checks++
   await evaluate(`(() => {
     const original = window.fetch;
@@ -495,7 +504,37 @@ try {
   await until(
     `document.querySelector('dialog [role="alert"]')?.textContent.includes('Connection interrupted')`
   )
+  await until(
+    `document.activeElement === document.querySelector('dialog [role="alert"]')`
+  )
   checks++
+  // Immediate failures exercise React batching, including the same error twice.
+  for (const failure of [
+    { status: 401, text: 'session has expired' },
+    { status: 400, text: 'Check the PO number' },
+    { status: 200, body: {}, text: "couldn't confirm" },
+    { status: 200, body: { order: { id: 'wrong', poNumber: 'wrong' } }, text: "couldn't confirm" },
+    { status: 200, body: { order: { id: 'wrong', poNumber: 'wrong' } }, text: "couldn't confirm" },
+    { network: true, text: 'Connection interrupted' },
+    { network: true, text: 'Connection interrupted' },
+  ]) {
+    await evaluate(`(() => {
+      document.querySelector('dialog button[type="submit"]').focus();
+      const failure = ${JSON.stringify(failure)};
+      const original = window.fetch;
+      window.fetch = () => {
+        window.fetch = original;
+        return failure.network
+          ? Promise.reject(new TypeError('Failed to fetch'))
+          : Promise.resolve(Response.json(failure.body ?? {}, {status: failure.status}));
+      };
+    })()`)
+    await submitOrder()
+    await until(
+      `document.querySelector('dialog [role="alert"]')?.textContent.includes(${JSON.stringify(failure.text)}) && document.activeElement === document.querySelector('dialog [role="alert"]')`
+    )
+    checks++
+  }
   await submitOrder()
   await until(
     `document.querySelector('dialog form').getAttribute('aria-busy') === 'true'`
@@ -583,6 +622,9 @@ try {
     await evaluate(
       `document.querySelector('[name="poNumber"]').validationMessage.includes('already exists')`
     )
+  )
+  await until(
+    `document.activeElement === document.querySelector('[name="poNumber"]')`
   )
   checks++
   await fillOrder({

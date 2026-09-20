@@ -17,8 +17,14 @@ export function CreatePurchaseOrder({
   const errorMessage = useRef<HTMLParagraphElement>(null)
   const submitting = useRef(false)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState<{ message: string } | null>(null)
   const [created, setCreated] = useState("")
+
+  useEffect(() => {
+    // Each failure has its own identity, including repeated identical errors.
+    // Effects run after the alert has committed and its ref is available.
+    if (error) errorMessage.current?.focus()
+  }, [error])
 
   useEffect(() => {
     const element = dialog.current
@@ -47,7 +53,7 @@ export function CreatePurchaseOrder({
 
     submitting.current = true
     setPending(true)
-    setError("")
+    setError(null)
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -70,8 +76,7 @@ export function CreatePurchaseOrder({
               : response.status === 400
                 ? "Check the PO number, quantity, unit price, and expected date, then try again."
                 : "We couldn't confirm that the purchase order was saved. Check the purchase orders list for this PO number before trying again."
-        setError(message)
-        requestAnimationFrame(() => errorMessage.current?.focus())
+        setError({ message })
         return
       }
       const result = await response.json().catch(() => null)
@@ -79,10 +84,9 @@ export function CreatePurchaseOrder({
         typeof result?.order?.id !== "string" ||
         result.order.poNumber !== poNumber
       ) {
-        setError(
-          "We couldn't confirm that the purchase order was saved. Check the purchase orders list for this PO number before trying again."
-        )
-        requestAnimationFrame(() => errorMessage.current?.focus())
+        setError({
+          message: "We couldn't confirm that the purchase order was saved. Check the purchase orders list for this PO number before trying again.",
+        })
         return
       }
       setCreated(poNumber)
@@ -90,10 +94,9 @@ export function CreatePurchaseOrder({
       form.reset()
       router.refresh()
     } catch {
-      setError(
-        "Connection interrupted. Check the purchase orders list for this PO number before trying again."
-      )
-      requestAnimationFrame(() => errorMessage.current?.focus())
+      setError({
+        message: "Connection interrupted. Check the purchase orders list for this PO number before trying again.",
+      })
     } finally {
       submitting.current = false
       setPending(false)
@@ -107,7 +110,7 @@ export function CreatePurchaseOrder({
         className={primaryButton}
         onClick={() => {
           setCreated("")
-          setError("")
+          setError(null)
           dialog.current?.showModal()
         }}
       >
@@ -241,7 +244,7 @@ export function CreatePurchaseOrder({
                 tabIndex={-1}
                 className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-800"
               >
-                {error}
+                {error.message}
               </p>
               <button
                 type="button"
