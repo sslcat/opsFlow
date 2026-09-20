@@ -161,6 +161,7 @@ try {
       expression,
       returnByValue: true,
       awaitPromise: true,
+      userGesture: true,
     })
     assert.ok(
       !response.exceptionDetails,
@@ -303,6 +304,313 @@ try {
     checks++
     console.log(`PASS tablet sidebar ${route}`)
   }
+  // Purchase orders use the real POST route and permission resolver with fake storage.
+  await mode("authorized")
+  await send("Page.navigate", { url: origin + "/orders" })
+  await until(
+    `document.querySelector('main h1')?.textContent === 'Purchase orders'`
+  )
+  assert.equal(
+    await evaluate(
+      `document.querySelector('main').innerText.includes('Create purchase order')`
+    ),
+    false
+  )
+  const deniedCreate = await fetch(origin + "/api/orders", {
+    method: "POST",
+    headers: {
+      cookie: "workspace-test=authorized",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ poNumber: "FORBIDDEN", quantity: 1, unitPrice: 0 }),
+  })
+  assert.equal(deniedCreate.status, 403)
+  checks++
+  console.log("PASS read-only user has no create action and cannot POST")
+  await mode("creator")
+  await send("Page.navigate", { url: origin + "/orders" })
+  await until(
+    `document.querySelector('main').innerText.includes('No purchase orders yet')`
+  )
+  const openOrder = async () =>
+    until(`(() => {
+    if (!document.querySelector('dialog')?.open) {
+      document.querySelector('main button')?.focus();
+      document.querySelector('main button')?.click();
+    }
+    return document.querySelector('dialog')?.open;
+  })()`)
+  const fillOrder = async (values) =>
+    evaluate(`(() => {
+    for (const [name, value] of Object.entries(${JSON.stringify(values)})) {
+      const input = document.querySelector('dialog [name="' + name + '"]');
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+  })()`)
+  const submitOrder = () =>
+    evaluate(`document.querySelector('dialog button[type="submit"]').click()`)
+  await openOrder()
+  assert.equal(await evaluate("document.activeElement.id"), "po-number")
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Tab",
+    code: "Tab",
+    modifiers: 8,
+    windowsVirtualKeyCode: 9,
+  })
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Tab",
+    code: "Tab",
+    modifiers: 8,
+    windowsVirtualKeyCode: 9,
+  })
+  assert.ok(
+    await evaluate(
+      `document.activeElement === document.body || document.querySelector('dialog').contains(document.activeElement)`
+    )
+  )
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  })
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  })
+  await until(`!document.querySelector('dialog').open`)
+  assert.ok(
+    await evaluate(
+      `document.activeElement === document.querySelector('main button')`
+    )
+  )
+  checks++
+  console.log(
+    "PASS dialog focus, keyboard containment, Escape and focus restoration"
+  )
+  await openOrder()
+  const validOrder = {
+    poNumber: "PO-LOCAL-E2E-1001",
+    vendorName: "Acme Supplies",
+    itemCode: "ITEM-ABC",
+    quantity: "100",
+    unitPrice: "10",
+    expectedDate: "2026-10-01",
+  }
+  await fillOrder(validOrder)
+  for (const invalid of [
+    { poNumber: "   " },
+    { quantity: "" },
+    { quantity: "0" },
+    { quantity: "1.5" },
+    { quantity: "2147483648" },
+    { unitPrice: "" },
+    { unitPrice: "-1" },
+  ]) {
+    await fillOrder({ ...validOrder, ...invalid })
+    assert.equal(
+      await evaluate(`document.querySelector('dialog form').checkValidity()`),
+      false
+    )
+    await submitOrder()
+    assert.equal(
+      await evaluate(
+        `document.querySelector('dialog form').getAttribute('aria-busy')`
+      ),
+      "false"
+    )
+    checks++
+  }
+  await fillOrder(validOrder)
+  await screenshot("create-order-tablet")
+  assert.ok(
+    await evaluate("document.documentElement.scrollWidth <= innerWidth")
+  )
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  })
+  await screenshot("create-order-desktop")
+  // An expired permission must still be enforced after the form has opened.
+  await mode("authorized")
+  await submitOrder()
+  await until(
+    `document.querySelector('dialog [role="alert"]')?.textContent.includes('permission')`
+  )
+  assert.equal(
+    await evaluate(`document.querySelector('[name="poNumber"]').value`),
+    validOrder.poNumber
+  )
+  checks++
+  await mode("creator")
+  await fillOrder({ poNumber: "FAIL-SERVER" })
+  await submitOrder()
+  await until(
+    `document.querySelector('dialog [role="alert"]')?.textContent.includes("couldn't confirm")`
+  )
+  await until(
+    `document.activeElement === document.querySelector('dialog [role="alert"]')`
+  )
+  await screenshot("create-order-error")
+  checks++
+  await evaluate(
+    `Array.from(document.querySelectorAll('dialog button')).find(button => button.textContent === 'Check purchase orders').click()`
+  )
+  await until(`!document.querySelector('dialog').open`)
+  await openOrder()
+  assert.equal(
+    await evaluate(`document.querySelector('[name="poNumber"]').value`),
+    "FAIL-SERVER"
+  )
+  checks++
+  await fillOrder(validOrder)
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = () => {
+      window.fetch = original;
+      return Promise.resolve(new Response('<html>Unexpected response</html>', {status: 200}));
+    };
+  })()`)
+  await submitOrder()
+  await until(
+    `document.querySelector('dialog [role="alert"]')?.textContent.includes("couldn't confirm")`
+  )
+  checks++
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = (...args) => {
+      window.fetch = original;
+      return Promise.reject(new TypeError('Failed to fetch'));
+    };
+  })()`)
+  await submitOrder()
+  await until(
+    `document.querySelector('dialog [role="alert"]')?.textContent.includes('Connection interrupted')`
+  )
+  checks++
+  await submitOrder()
+  await until(
+    `document.querySelector('dialog form').getAttribute('aria-busy') === 'true'`
+  )
+  assert.ok(
+    await evaluate(
+      `document.querySelector('dialog fieldset').disabled && document.querySelector('dialog button[type="submit"]').disabled`
+    )
+  )
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  })
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  })
+  assert.ok(
+    await evaluate(`document.querySelector('dialog').open`),
+    JSON.stringify(
+      await evaluate(
+        `({busy: document.querySelector('dialog form').getAttribute('aria-busy'), status: document.querySelector('main [role="status"]').textContent, error: document.querySelector('dialog [role="alert"]')?.textContent})`
+      )
+    )
+  )
+  await until(
+    `!document.querySelector('dialog').open && document.querySelector('tbody')?.innerText.includes('PO-LOCAL-E2E-1001')`
+  )
+  assert.ok(
+    await evaluate(
+      `document.querySelector('main [role="status"]').textContent.includes('created')`
+    )
+  )
+  await screenshot("create-order-success")
+  checks++
+  const savedOrders = await (
+    await fetch(origin + "/api/orders", {
+      headers: { cookie: "workspace-test=creator" },
+    })
+  ).json()
+  assert.equal(
+    savedOrders.orders.length,
+    1,
+    "Failed or repeated submits must not create records"
+  )
+  assert.deepEqual(
+    savedOrders.orders.map(
+      ({
+        poNumber,
+        vendorName,
+        itemCode,
+        quantity,
+        unitPrice,
+        expectedDate,
+        organizationId,
+      }) => ({
+        poNumber,
+        vendorName,
+        itemCode,
+        quantity,
+        unitPrice,
+        expectedDate,
+        organizationId,
+      })
+    ),
+    [
+      {
+        ...validOrder,
+        quantity: 100,
+        unitPrice: 10,
+        expectedDate: "2026-10-01T00:00:00.000Z",
+        organizationId: "org-a",
+      },
+    ]
+  )
+  checks++
+  await openOrder()
+  await fillOrder(validOrder)
+  await submitOrder()
+  assert.ok(
+    await evaluate(
+      `document.querySelector('[name="poNumber"]').validationMessage.includes('already exists')`
+    )
+  )
+  checks++
+  await fillOrder({
+    poNumber: "PO-ZERO",
+    vendorName: "",
+    itemCode: "",
+    quantity: "1",
+    unitPrice: "0",
+    expectedDate: "",
+  })
+  await submitOrder()
+  await until(
+    `!document.querySelector('dialog').open && document.querySelector('tbody')?.innerText.includes('PO-ZERO')`
+  )
+  checks++
+  await mode("tenant-b")
+  await send("Page.reload")
+  await until(
+    `document.querySelector('tbody')?.innerText.includes('Order org-b')`
+  )
+  assert.ok(
+    !(await evaluate(`document.querySelector('main').innerText`)).includes(
+      validOrder.poNumber
+    )
+  )
+  checks++
+  console.log(
+    "PASS PO validation, error recovery, permission loss, create/refresh, optional fields, zero price and tenant isolation"
+  )
   for (const [route] of destinations) {
     const response = await fetch(origin + route, {
       redirect: "manual",

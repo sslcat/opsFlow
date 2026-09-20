@@ -106,6 +106,31 @@ Returns Purchase Orders owned by the active organization.
 Creates Purchase Orders owned by the active organization. Purchase Order numbers
 are unique within an organization.
 
+Requires `order.create`. The Purchase Orders page (`/orders`, requiring
+`order.read`) exposes **Create purchase order** only when the current membership
+has `order.create`. The dialog calls this existing endpoint and refreshes the
+tenant-scoped list after success; it never accepts an organization ID.
+
+| Field | Required | Current constraints |
+| --- | --- | --- |
+| `poNumber` | Yes | Nonblank text, trimmed; unique within the organization |
+| `quantity` | Yes | Positive whole number; the UI respects the Prisma/PostgreSQL Int maximum of 2,147,483,647 |
+| `unitPrice` | Yes | Finite number greater than or equal to zero; fractional precision is not limited to two decimals |
+| `vendorName` | No | Text; blank UI input becomes null |
+| `itemCode` | No | Text; blank UI input becomes null |
+| `expectedDate` | No | Valid date; the UI sends YYYY-MM-DD, stored at UTC midnight; blank becomes null |
+
+Each order currently represents one item. There are no currency, tax, total,
+status, or multiple-line inputs in this model. Matching uses the PO number in
+the active organization and compares quantity and unit price. Vendor, item code,
+and expected date do not add matching rules.
+
+The UI catches duplicate numbers already present in the loaded list. Concurrent
+duplicates remain protected by the database constraint. The unchanged endpoint
+does not currently map that constraint failure to a structured conflict response;
+the dialog handles non-JSON/server failures with a safe message and a **Check
+purchase orders** action. It retains the draft and never retries automatically.
+
 Current payload
 
 ```json

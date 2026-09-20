@@ -155,3 +155,32 @@ Final gates: TypeScript, ESLint, production build, Prisma schema validation, and
 diff whitespace checks pass. `npm test`: 39 passed, 3 disposable-database tests
 skipped (not configured). Prisma validation used placeholder URLs without a
 database connection. The fix is committed locally without pushing.
+
+### Purchase order creation follow-up
+
+The read-only Purchase Orders page prevented users from establishing the reference
+terms needed for invoice matching. It now offers a Create purchase order dialog
+to memberships with `order.create`, while retaining the page's `order.read` guard.
+The form reuses `POST /api/orders`, the existing Order fields and validation rules,
+and the approved page header/button styles. No API, backend, schema, authorization
+policy, extraction, matching, or Insights implementation changed.
+
+The native dialog provides labeled inputs, keyboard focus handling, validation,
+pending controls, duplicate feedback for loaded records, success confirmation,
+and a refreshed table. Errors retain the draft and provide a list refresh action
+for uncertain save outcomes; no automatic mutation retries are made. Form state
+is keyed by membership and organization. Exact fields are documented in `API.md`.
+
+Verification: TypeScript, ESLint, production build, Prisma validation (placeholder
+URLs, no database connection), and diff checks pass. `npm test`: 41 passed,
+3 disposable-database checks skipped because no test database is configured.
+The real Next.js fixture passes 70 browser/HTTP checks, including all six sidebar
+destinations, PO creation, required/optional fields, zero price, pending controls,
+errors, permission loss, duplicate feedback, refresh, and tenant isolation.
+Desktop/tablet dialog, error, and success screenshots were reviewed.
+
+A controlled PO (`PO-LOCAL-E2E-1001`, Acme Supplies, ITEM-ABC, quantity 100,
+unit price 10, expected date 2026-10-01) was created through the actual UI/API
+against temporary in-memory fixture storage only. No production demonstration
+data was created. Live Clerk and database end-to-end testing remains a separate
+smoke check; the fixture does not establish a persistent PO for a real invoice.

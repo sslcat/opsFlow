@@ -22,6 +22,15 @@ logs are retained in the printed temporary directory. The app and hidden browser
 are stopped after the run. The fixture's account/organization buttons are test
 stand-ins; this does not claim verification of Clerk's hosted UI or real sessions.
 
+Purchase-order checks also exercise the real form and `/api/orders` route with
+read-only and create-permission memberships. They cover an empty list, dialog
+keyboard/focus behavior, required/numeric validation, duplicate feedback,
+permission loss, non-JSON server errors, network interruption, pending controls,
+successful refresh, optional fields, zero price, and isolation of created orders
+from a second tenant. Created orders exist only in the temporary server's memory;
+no production or local development database is written. Screenshots include the
+desktop/tablet dialog, error, and success states.
+
 `npm test` separately exercises the real access resolver with mocked identity
 boundaries and verifies unchanged API 401/403 decisions, complete permission
 requirements, tenant switching, and error propagation. Existing route tests

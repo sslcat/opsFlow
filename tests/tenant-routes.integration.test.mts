@@ -416,6 +416,44 @@ test("collection reads and mutations always use the active organization", async 
   }
 })
 
+test("purchase order creation validates required fields before writing", async () => {
+  authorizationStatus = "authorized"
+  const valid = { poNumber: "PO-TEST", quantity: 10, unitPrice: 5 }
+  for (const invalid of [
+    { poNumber: "   " }, { poNumber: null }, { quantity: 0 },
+    { quantity: -1 }, { quantity: 1.5 }, { quantity: "10" },
+    { unitPrice: -1 }, { unitPrice: "5" }, { unitPrice: null },
+    { expectedDate: "not-a-date" },
+  ]) {
+    operations.length = 0
+    const response = await ordersRoute.POST(jsonRequest("/api/orders", { ...valid, ...invalid }))
+    assert.equal(response.status, 400)
+    assert.equal(operations.length, 0)
+  }
+})
+
+test("purchase order creation preserves supported fields and ignores caller tenant identity", async () => {
+  authorizationStatus = "authorized"
+  operations.length = 0
+  const response = await ordersRoute.POST(jsonRequest("/api/orders", {
+    organizationId: ORGANIZATION_B, poNumber: "  PO-TEST  ",
+    vendorName: "Test supplier", itemCode: "ITEM-1", quantity: 10,
+    unitPrice: 12.345, expectedDate: "2026-10-01",
+  }))
+  assert.equal(response.status, 200)
+  const { order } = await response.json()
+  assert.equal(order.poNumber, "PO-TEST")
+  assert.equal(order.organizationId, ORGANIZATION_A)
+  assert.equal(order.vendorName, "Test supplier")
+  assert.equal(order.itemCode, "ITEM-1")
+  assert.equal(order.quantity, 10)
+  assert.equal(order.unitPrice, 12.345)
+  assert.equal(order.expectedDate, "2026-10-01T00:00:00.000Z")
+  const minimal = await ordersRoute.POST(jsonRequest("/api/orders", { poNumber: "PO-ZERO", quantity: 1, unitPrice: 0 }))
+  assert.equal(minimal.status, 200)
+  assert.equal((await minimal.json()).order.expectedDate, null)
+})
+
 test("cross-tenant resource identifiers return 404 before storage or mutation", async () => {
   insightsInputs.length = 0
   authorizationStatus = "authorized"

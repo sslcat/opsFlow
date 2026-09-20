@@ -2,6 +2,7 @@ import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
 import { getWorkspacePageContext } from "@/components/workspace-page-access"
 import { WorkspaceAccessState } from "@/components/workspace-access-state"
 import { getOrdersPageData } from "@/lib/tenant-page-data"
+import { CreatePurchaseOrder } from "@/components/create-purchase-order"
 
 export default async function OrdersPage() {
   const authorization = await getWorkspacePageContext("order.read")
@@ -15,13 +16,25 @@ export default async function OrdersPage() {
       <PageHeader
         title="Purchase orders"
         description="The purchasing terms behind every invoice comparison."
+        action={
+          authorization.permissions.has("order.create") && (
+            <CreatePurchaseOrder
+              key={`${authorization.organizationId}:${authorization.membershipId}`}
+              existingPoNumbers={orders.map((order) => order.poNumber)}
+            />
+          )
+        }
       />
 
       {orders.length === 0 ? (
         <Card>
           <EmptyState
             title="No purchase orders yet"
-            description="Purchase orders will appear here once they are added to your organization."
+            description={
+              authorization.permissions.has("order.create")
+                ? "Create your first purchase order to give invoice matching the agreed quantity and unit price."
+                : "Purchase orders will appear here once they are added to your organization."
+            }
           />
         </Card>
       ) : (

@@ -1,5 +1,11 @@
 ﻿import { scenario } from "./clerk-server.fixture"
 
+import type { Order } from "@prisma/client"
+
+// Share fixture writes between the page and API bundles, never a real database.
+const state = globalThis as typeof globalThis & { testOrders?: Order[] }
+const createdOrders = (state.testOrders ??= [])
+
 const reads = [
   "organization.read",
   "document.read",
@@ -23,9 +29,12 @@ async function membership() {
         role: {
           key: "auditor",
           name: "Auditor",
-          permissions: ((await scenario()) === "denied" ? [] : reads).map(
-            (key) => ({ permission: { key } })
-          ),
+          permissions: ((await scenario()) === "denied"
+            ? []
+            : (await scenario()) === "creator"
+              ? [...reads, "order.create"]
+              : reads
+          ).map((key) => ({ permission: { key } })),
         },
       },
     ],
@@ -88,9 +97,45 @@ export const prisma = {
     },
   },
   order: {
+    create: async ({
+      data,
+    }: {
+      data: Omit<Order, "id" | "createdAt" | "updatedAt">
+    }) => {
+      await checkQuery(
+        { where: { organizationId: data.organizationId } },
+        "order.read"
+      )
+      if ((await scenario()) !== "creator")
+        throw new Error("Unauthorized order write")
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (data.poNumber === "FAIL-SERVER")
+        throw new Error("Simulated storage failure")
+      if (
+        createdOrders.some(
+          (order) =>
+            order.organizationId === data.organizationId &&
+            order.poNumber === data.poNumber
+        )
+      )
+        throw new Error("Duplicate PO")
+      const order = {
+        ...data,
+        id: `created-${createdOrders.length}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      createdOrders.push(order)
+      return order
+    },
     findMany: async (args: { where: { organizationId: string } }) => {
       await checkQuery(args, "order.read")
+      const created = createdOrders.filter(
+        (order) => order.organizationId === args.where.organizationId
+      )
+      if ((await scenario()) === "creator") return created
       return [
+        ...created,
         {
           id: "test-order",
           poNumber: `Order ${await organizationId()}`,
