@@ -184,3 +184,29 @@ unit price 10, expected date 2026-10-01) was created through the actual UI/API
 against temporary in-memory fixture storage only. No production demonstration
 data was created. Live Clerk and database end-to-end testing remains a separate
 smoke check; the fixture does not establish a persistent PO for a real invoice.
+
+### Upload identity isolation release fix
+
+The release review reproduced retained invoice details and AI Insights after a
+same-page organization switch. Upload now subscribes to Clerk's active user and
+organization and keys the entire stateful workflow by both identifiers. Missing
+or loading identity removes the workflow. Identity changes therefore discard
+the file input, document/retry reference, invoice/extraction/Insights result,
+matching/progress display, error, and pending state in the same render.
+
+Workflow cleanup aborts XHR transfer and processing fetch requests. Explicit
+cancellation checks after asynchronous boundaries ignore late completions even
+when a transport does not honor abort. Old uploads cannot initiate processing
+after cleanup, and stale successes/errors cannot affect the new workflow.
+The existing 90-second processing timeout and same-identity idempotent retry
+behavior remain. Cancellation does not undo work already accepted by the server;
+existing server authorization, tenant scoping, APIs, and transactions are unchanged.
+
+Verification: TypeScript, ESLint, production build, Prisma schema validation,
+and whitespace checks pass. Existing automated tests: 41 passed, 3 disposable-
+database tests skipped (not configured). The isolated browser suite passes
+86 checks, including 16 new identity-isolation checks for completed, pending,
+retry, stale-response/body/error, user-change, and auth-loss scenarios. The
+cleared-state screenshot was reviewed. No live records or credentials changed.
+Real Clerk account switching and deployed service smoke checks remain release
+verification steps outside the synthetic browser fixture.

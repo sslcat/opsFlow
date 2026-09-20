@@ -31,6 +31,18 @@ from a second tenant. Created orders exist only in the temporary server's memory
 no production or local development database is written. Screenshots include the
 desktop/tablet dialog, error, and success states.
 
+`upload-identity-checks.mjs` adds 16 checks against the actual upload workflow.
+The Clerk fixture publishes reactive user/organization changes without navigating
+or refreshing the server. Completed invoice, extraction, and Insights results,
+selected files, progress, pending requests, errors, and retry references must be
+discarded. Tests switch back to the original organization, change users within
+an organization, and remove the organization, user, or loaded auth state.
+Transport fixtures deliberately deliver late XHR load/progress events, fetch
+responses, JSON bodies, and errors after cancellation. They verify that old
+uploads cannot start processing, old requests cannot overwrite/unlock new work,
+and a retry reuses its document only while the identity remains unchanged.
+No real files are uploaded and no AI provider is called by these checks.
+
 `npm test` separately exercises the real access resolver with mocked identity
 boundaries and verifies unchanged API 401/403 decisions, complete permission
 requirements, tenant switching, and error propagation. Existing route tests

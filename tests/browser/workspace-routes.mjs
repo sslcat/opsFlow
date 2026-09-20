@@ -9,6 +9,7 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { checkUploadIdentity } from "./upload-identity-checks.mjs"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const fixture = await mkdtemp(path.join(tmpdir(), "opsflow-route-check-"))
@@ -624,6 +625,13 @@ try {
     )
     checks++
   }
+  checks += await checkUploadIdentity({
+    evaluate,
+    until,
+    send,
+    screenshot,
+    origin,
+  })
   const unknown = await fetch(origin + "/this-route-does-not-exist")
   assert.equal(unknown.status, 404)
   checks++

@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useRef, useState } from "react"
+import { useAuth } from "@clerk/nextjs"
+import { useLayoutEffect, useRef, useState } from "react"
 import type { InsightsResult } from "@/lib/insights/types"
 import type { ExtractionResult } from "@/lib/extraction/types"
 import {
@@ -30,19 +31,32 @@ type ProcessResult = {
 
 function uploadDocument(
   file: File,
-  onProgress: (value: number | null) => void
+  onProgress: (value: number | null) => void,
+  signal: AbortSignal
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+      return
+    }
     const request = new XMLHttpRequest()
+    const abort = () => {
+      request.abort()
+      reject(signal.reason)
+    }
+    signal.addEventListener("abort", abort, { once: true })
+    request.onloadend = () => signal.removeEventListener("abort", abort)
     request.open("POST", "/api/upload")
     request.responseType = "json"
     request.timeout = 90000
-    request.upload.onprogress = (event) =>
-      onProgress(
-        event.lengthComputable
-          ? Math.round((event.loaded / event.total) * 100)
-          : null
-      )
+    request.upload.onprogress = (event) => {
+      if (!signal.aborted)
+        onProgress(
+          event.lengthComputable
+            ? Math.round((event.loaded / event.total) * 100)
+            : null
+        )
+    }
     request.onerror = () =>
       reject(
         new Error(
@@ -56,6 +70,7 @@ function uploadDocument(
         )
       )
     request.onload = () => {
+      if (signal.aborted) return
       const data = request.response
       if (request.status < 200 || request.status >= 300) {
         reject(
@@ -83,6 +98,33 @@ function uploadDocument(
 }
 
 export default function UploadPage() {
+  const { isLoaded, userId, orgId } = useAuth()
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="AI INVOICE PROCESSING"
+        title="Let your invoices do the talking."
+        description="Upload a PDF. Get structured details, purchase order checks, and AI-powered explanations in one flow."
+      />
+      {isLoaded && userId && orgId ? (
+        <UploadWorkflow key={JSON.stringify([userId, orgId])} />
+      ) : (
+        <Card className="p-6">
+          <p role="status" className="text-sm text-slate-600">
+            {!isLoaded
+              ? "Loading your workspace…"
+              : !userId
+                ? "Sign in to upload an invoice."
+                : "Select an organization to upload an invoice."}
+          </p>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function UploadWorkflow() {
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<UploadPhase>("idle")
   const [progress, setProgress] = useState<number | null>(0)
@@ -92,6 +134,10 @@ export default function UploadPage() {
   const [result, setResult] = useState<ProcessResult | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const busy = useRef(false)
+  const activeRequest = useRef<AbortController | null>(null)
+  // A keyed identity change removes all state before paint. Abort on commit,
+  // rather than a passive effect, so old work cannot start another API step.
+  useLayoutEffect(() => () => activeRequest.current?.abort(), [])
   const isBusy = phase === "uploading" || phase === "processing"
   const insights = result
     ? (result.insights ?? { status: "UNAVAILABLE" as const, insights: null })
@@ -133,6 +179,8 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!file || busy.current) return
+    const controller = new AbortController()
+    activeRequest.current = controller
     busy.current = true
     setError("")
     setResult(null)
@@ -141,7 +189,8 @@ export default function UploadPage() {
       if (!sourceId) {
         setPhase("uploading")
         setProgress(0)
-        sourceId = await uploadDocument(file, setProgress)
+        sourceId = await uploadDocument(file, setProgress, controller.signal)
+        if (controller.signal.aborted) return
         setDocumentId(sourceId)
       }
       setPhase("processing")
@@ -149,9 +198,14 @@ export default function UploadPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId: sourceId }),
-        signal: AbortSignal.timeout(90000),
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(90000),
+        ]),
       })
+      if (controller.signal.aborted) return
       const data = await response.json()
+      if (controller.signal.aborted) return
       if (!response.ok)
         throw new Error(
           typeof data.error === "string"
@@ -165,6 +219,7 @@ export default function UploadPage() {
       setResult(data)
       setPhase("complete")
     } catch (cause) {
+      if (controller.signal.aborted) return
       setError(
         cause instanceof Error &&
           cause.name !== "TimeoutError" &&
@@ -174,17 +229,15 @@ export default function UploadPage() {
       )
       setPhase("error")
     } finally {
-      busy.current = false
+      if (!controller.signal.aborted) {
+        busy.current = false
+        activeRequest.current = null
+      }
     }
   }
 
   return (
     <div>
-      <PageHeader
-        eyebrow="AI INVOICE PROCESSING"
-        title="Let your invoices do the talking."
-        description="Upload a PDF. Get structured details, purchase order checks, and AI-powered explanations in one flow."
-      />
       {insights && (
         <div className="mb-6">
           <InvoiceInsightsPanel result={insights} />
