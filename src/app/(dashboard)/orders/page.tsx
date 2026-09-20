@@ -1,3 +1,4 @@
+import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
 import { requirePagePermission } from "@/lib/auth"
 import { getOrdersPageData } from "@/lib/tenant-page-data"
 
@@ -8,49 +9,57 @@ export default async function OrdersPage() {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold mb-8">
-        Purchase Orders
-      </h1>
+      <PageHeader
+        title="Purchase orders"
+        description="The purchasing terms behind every invoice comparison."
+      />
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full text-left">
+      {orders.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No purchase orders yet"
+            description="Purchase orders will appear here once they are added to your organization."
+          />
+        </Card>
+      ) : (
+        <DataTable label="Purchase orders">
           <thead className="bg-gray-100 border-b">
             <tr>
-              <th className="p-4">PO Number</th>
-              <th className="p-4">Vendor</th>
-              <th className="p-4">Item</th>
-              <th className="p-4">Quantity</th>
-              <th className="p-4">Unit Price</th>
+              <th scope="col" className="p-4">
+                PO Number
+              </th>
+              <th scope="col" className="p-4">
+                Vendor
+              </th>
+              <th scope="col" className="p-4">
+                Item
+              </th>
+              <th scope="col" className="p-4">
+                Quantity
+              </th>
+              <th scope="col" className="p-4">
+                Unit Price
+              </th>
             </tr>
           </thead>
 
           <tbody>
             {orders.map((order) => (
               <tr key={order.id} className="border-b">
-                <td className="p-4 font-semibold">
-                  {order.poNumber}
-                </td>
+                <td className="p-4 font-semibold">{order.poNumber}</td>
 
-                <td className="p-4">
-                  {order.vendorName}
-                </td>
+                <td className="p-4">{order.vendorName}</td>
 
-                <td className="p-4">
-                  {order.itemCode}
-                </td>
+                <td className="p-4">{order.itemCode}</td>
 
-                <td className="p-4">
-                  {order.quantity}
-                </td>
+                <td className="p-4">{order.quantity}</td>
 
-                <td className="p-4">
-                  ${order.unitPrice}
-                </td>
+                <td className="p-4">${order.unitPrice}</td>
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataTable>
+      )}
     </div>
   )
 }

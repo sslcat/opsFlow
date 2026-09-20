@@ -1,3 +1,4 @@
+import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
 import { requirePagePermission } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import RoleAssignmentSelect from "./role-assignment-select"
@@ -25,17 +26,29 @@ export default async function SettingsPage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-4xl font-bold">Organization members</h1>
-      <p className="mb-8 text-gray-600">
-        OpsFlow business roles are separate from Clerk organization roles.
-      </p>
+      <PageHeader
+        title="Organization members"
+        description="Manage your team's business roles and access. OpsFlow roles are separate from Clerk organization roles."
+      />
 
-      <div className="overflow-hidden rounded-xl bg-white shadow">
-        <table className="w-full text-left">
+      {memberships.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon="settings"
+            title="No members to display"
+            description="Members of your active organization will appear here. Contact your administrator if you expected to see your team."
+          />
+        </Card>
+      ) : (
+        <DataTable label="Organization members">
           <thead className="border-b bg-gray-100">
             <tr>
-              <th className="p-4">Member</th>
-              <th className="p-4">Business role</th>
+              <th scope="col" className="p-4">
+                Member
+              </th>
+              <th scope="col" className="p-4">
+                Business role
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -68,15 +81,15 @@ export default async function SettingsPage() {
                         }))}
                       />
                     ) : (
-                      membership.roles[0]?.role.name ?? "Auditor"
+                      (membership.roles[0]?.role.name ?? "Auditor")
                     )}
                   </td>
                 </tr>
               )
             })}
           </tbody>
-        </table>
-      </div>
+        </DataTable>
+      )}
     </div>
   )
 }

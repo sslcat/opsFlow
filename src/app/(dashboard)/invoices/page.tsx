@@ -1,3 +1,4 @@
+import { Card, DataTable, EmptyState, PageHeader } from "@/components/ui"
 import { requirePagePermission } from "@/lib/auth"
 import { getInvoicesPageData } from "@/lib/tenant-page-data"
 
@@ -8,59 +9,59 @@ export default async function InvoicesPage() {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold mb-8">
-        Invoices
-      </h1>
+      <PageHeader
+        title="Invoices"
+        description="Your recorded invoices, ready for a closer look."
+      />
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-
-        <table className="w-full text-left">
-
+      {invoices.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No invoices yet"
+            description="Upload an invoice to extract its details and compare it with a purchase order."
+            href="/upload"
+            action="Upload invoice"
+          />
+        </Card>
+      ) : (
+        <DataTable label="Invoices">
           <thead className="bg-gray-100 border-b">
             <tr>
-              <th className="p-4">Invoice</th>
-              <th className="p-4">PO</th>
-              <th className="p-4">Vendor</th>
-              <th className="p-4">Quantity</th>
-              <th className="p-4">Unit Price</th>
+              <th scope="col" className="p-4">
+                Invoice
+              </th>
+              <th scope="col" className="p-4">
+                PO
+              </th>
+              <th scope="col" className="p-4">
+                Vendor
+              </th>
+              <th scope="col" className="p-4">
+                Quantity
+              </th>
+              <th scope="col" className="p-4">
+                Unit Price
+              </th>
             </tr>
           </thead>
 
           <tbody>
-
             {invoices.map((invoice) => (
-              <tr
-                key={invoice.id}
-                className="border-b"
-              >
-                <td className="p-4 font-semibold">
-                  {invoice.invoiceNumber}
-                </td>
+              <tr key={invoice.id} className="border-b">
+                <td className="p-4 font-semibold">{invoice.invoiceNumber}</td>
 
-                <td className="p-4">
-                  {invoice.poNumber}
-                </td>
+                <td className="p-4">{invoice.poNumber}</td>
 
-                <td className="p-4">
-                  {invoice.vendorName}
-                </td>
+                <td className="p-4">{invoice.vendorName}</td>
 
-                <td className="p-4">
-                  {invoice.quantity}
-                </td>
+                <td className="p-4">{invoice.quantity}</td>
 
-                <td className="p-4">
-                  ${invoice.unitPrice}
-                </td>
-
+                <td className="p-4">${invoice.unitPrice}</td>
               </tr>
             ))}
-
           </tbody>
-
-        </table>
-
-      </div>
+        </DataTable>
+      )}
     </div>
   )
 }
